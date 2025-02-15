@@ -3,32 +3,43 @@ const KRPANO_VIEWER_ID = "krpano-viewer";
 
 const loadKrpano = () => {
   let xmlStr;
+  let krpanoInstance;
 
   function onKRPanoReady(krpano) {
+    krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
-      
-      var secondHotspot = krpano.addhotspot(null);
-      secondHotspot.name = "secondHotspot"; // Ensure the hotspot has a name
-      secondHotspot.type = "text";
-      secondHotspot.text = "Second Hotspot";
-      secondHotspot.ath = 40;
-      secondHotspot.atv = 20;
-      secondHotspot.onclick = function() {
-        const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
-        if (newName) {
-          secondHotspot.name = newName; // Update the hotspot name
-          secondHotspot.text = newName; // Update the displayed text of the hotspot
-        }
-        const x = krpano.get("mouse.x");
-        const y = krpano.get("mouse.y");
-        const coordinateDisplay = document.getElementById("coordinateDisplay");
-        coordinateDisplay.innerText = `Coordinates: x=${x}, y=${y}`;
-      };
-    
+
+      // Add event listener for mouse clicks
+      document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('click', onViewerClick);
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
+  }
+
+  function onViewerClick(event) {
+    const x = event.clientX;
+    const y = event.clientY;
+
+    const secondHotspot = krpanoInstance.addhotspot();
+    secondHotspot.name = "secondHotspot"; // Ensure the hotspot has a name
+    secondHotspot.type = "text";
+    secondHotspot.text = "Second Hotspot";
+    secondHotspot.ath = krpanoInstance.screentosphere(x, y).x;
+    secondHotspot.atv = krpanoInstance.screentosphere(x, y).y;
+
+    secondHotspot.onclick = function() {
+      const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
+      if (newName) {
+        secondHotspot.name = newName; // Update the hotspot name
+        secondHotspot.text = newName; // Update the displayed text of the hotspot
+      }
+      const mouseX = krpanoInstance.get("mouse.x");
+      const mouseY = krpanoInstance.get("mouse.y");
+
+      const coordinateDisplay = document.getElementById("coordinateDisplay");
+      coordinateDisplay.innerText = `Coordinates: x=${mouseX}, y=${mouseY}`;
+    };
   }
 
   function onKRPanoError(err) {
@@ -48,7 +59,7 @@ const loadKrpano = () => {
       const xmlDoc = parser.parseFromString(xml, 'text/xml');
 
       // Replace remote nadir url with local asset due to CORS errors
-      const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo'");
+      const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo']");
       nadirHotspotElem.setAttribute('url', './ids-nadir.png');
 
       const serializer = new XMLSerializer();
