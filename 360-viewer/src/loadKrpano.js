@@ -15,6 +15,11 @@ const loadKrpano = () => {
       secondHotspot.ath = 40;
       secondHotspot.atv = 20;
       secondHotspot.onclick = function() {
+        const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
+        if (newName) {
+          secondHotspot.name = newName; // Update the hotspot name
+          secondHotspot.text = newName; // Update the displayed text of the hotspot
+        }
         const x = krpano.get("mouse.x");
         const y = krpano.get("mouse.y");
         const coordinateDisplay = document.getElementById("coordinateDisplay");
