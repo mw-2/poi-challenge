@@ -10,6 +10,9 @@ const loadKrpano = () => {
     try {
       krpano.call(`loadxml(${xmlStr})`);
 
+      // Load saved hotspots from localStorage
+      loadSavedHotspots();
+
       // Add event listener for mouse double-clicks
       document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('dblclick', onViewerDoubleClick);
     } catch (err) {
@@ -22,18 +25,13 @@ const loadKrpano = () => {
     const y = event.clientY;
 
     const secondHotspot = krpanoInstance.addhotspot();
-    secondHotspot.name = "secondHotspot"; // Ensure the hotspot has a name
+    secondHotspot.name = `hotspot_${Date.now()}`; // Unique name for each hotspot
     secondHotspot.type = "text";
     secondHotspot.text = "Second Hotspot";
     secondHotspot.ath = krpanoInstance.screentosphere(x, y).x;
     secondHotspot.atv = krpanoInstance.screentosphere(x, y).y;
 
     secondHotspot.onclick = function() {
-      //const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
-      //if (newName) {
-        //secondHotspot.name = newName; // Update the hotspot name
-        //secondHotspot.text = newName; // Update the displayed text of the hotspot
-      // }
       const mouseX = krpanoInstance.get("mouse.x");
       const mouseY = krpanoInstance.get("mouse.y");
 
@@ -46,7 +44,38 @@ const loadKrpano = () => {
     secondHotspot.editenterkey = "newline";
     secondHotspot.oneditstop = function() {
       console.log("Editing stopped for hotspot:", secondHotspot.name);
+      saveHotspot(secondHotspot); // Save the hotspot when editing stops
     };
+  }
+
+  // Function to save hotspot data to localStorage
+  function saveHotspot(hotspot) {
+    const savedHotspots = JSON.parse(localStorage.getItem('hotspots') || '{}');
+    savedHotspots[hotspot.name] = {
+      text: hotspot.text,
+      ath: hotspot.ath,
+      atv: hotspot.atv
+    };
+    localStorage.setItem('hotspots', JSON.stringify(savedHotspots));
+  }
+
+  // Function to load saved hotspots from localStorage
+  function loadSavedHotspots() {
+    const savedHotspots = JSON.parse(localStorage.getItem('hotspots') || '{}');
+    for (const [name, data] of Object.entries(savedHotspots)) {
+      const hotspot = krpanoInstance.addhotspot();
+      hotspot.name = name;
+      hotspot.type = "text";
+      hotspot.text = data.text;
+      hotspot.ath = data.ath;
+      hotspot.atv = data.atv;
+      hotspot.editable = true;
+      hotspot.editenterkey = "newline";
+      hotspot.oneditstop = function() {
+        console.log("Editing stopped for hotspot:", hotspot.name);
+        saveHotspot(hotspot); // Save the hotspot when editing stops
+      };
+    }
   }
 
   function onKRPanoError(err) {
