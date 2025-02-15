@@ -7,6 +7,15 @@ const loadKrpano = () => {
   function onKRPanoReady(krpano) {
     try {
       krpano.call(`loadxml(${xmlStr})`);
+      
+      var secondHotspot = krpano.addhotspot(null);
+      secondHotspot.type = "text";
+      secondHotspot.text = "Second Hotspot";
+      secondHotspot.ath = 40;
+      secondHotspot.atv = 20;
+      secondHotspot.onclick = function() {
+        alert("Second Hotspot Clicked");
+      };
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
