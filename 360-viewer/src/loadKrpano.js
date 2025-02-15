@@ -4,51 +4,88 @@ const KRPANO_VIEWER_ID = "krpano-viewer";
 const loadKrpano = () => {
   let xmlStr;
   let krpanoInstance;
-
+  let selectedHotspot = null;
+  
+  window.selectHotspot = function (hotspotName) {
+    const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
+    if (!hotspot) return;
+  
+    // Un-highlight any previously selected hotspot
+    if (selectedHotspot) {
+      selectedHotspot.bordercolor = null;
+    }
+  
+    // Select & highlight it
+    selectedHotspot = hotspot;
+    hotspot.bordercolor = "0xFF0000";
+    hotspot.borderwidth = 2;
+    hotspot.editable = true; // Make it editable immediately after selection
+  };
+  
+  window.unselectHotspot = function (hotspotName) {
+    const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
+    if (!hotspot) return;
+    hotspot.bordercolor = null;
+    hotspot.editable = false;
+    selectedHotspot = null;
+  };
+  
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
-
-      // Add event listener for mouse double-clicks
-      document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('dblclick', onViewerDoubleClick);
+  
+      // Attach onclick event to existing hotspots
+      const hotspots = krpanoInstance.get("hotspot"); // Get all hotspots
+      for (let i = 0; i < hotspots.length; i++) {
+        const hotspot = hotspots[i];
+        krpanoInstance.call(`set(hotspot[${hotspot.name}].onclick, "js(selectHotspot('${hotspot.name}'))")`);
+        krpanoInstance.call(`set(hotspot[${hotspot.name}].oneditstop, "js(unselectHotspot('${hotspot.name}'))")`);
+      }
+  
+      // Listen for double-click to create a new hotspot
+      document
+        .getElementById(KRPANO_VIEWER_TARGET_ID)
+        .addEventListener("dblclick", onViewerDoubleClick);
+  
+      // Helper for deleting the selected hotspot
+      function removeSelectedHotspot() {
+        if (!selectedHotspot) return;
+        krpanoInstance.call(`removehotspot(${selectedHotspot.name})`);
+        selectedHotspot = null;
+      }
+  
+      // Add 'Delete' key listener for removing selected hotspot
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Delete") {
+          removeSelectedHotspot();
+        }
+      });
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
   }
-
+  
   function onViewerDoubleClick(event) {
     const x = event.clientX;
     const y = event.clientY;
-
-    const secondHotspot = krpanoInstance.addhotspot();
-    secondHotspot.name = "secondHotspot"; // Ensure the hotspot has a name
-    secondHotspot.type = "text";
-    secondHotspot.text = "Second Hotspot";
-    secondHotspot.ath = krpanoInstance.screentosphere(x, y).x;
-    secondHotspot.atv = krpanoInstance.screentosphere(x, y).y;
-
-    secondHotspot.onclick = function() {
-      //const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
-      //if (newName) {
-        //secondHotspot.name = newName; // Update the hotspot name
-        //secondHotspot.text = newName; // Update the displayed text of the hotspot
-      // }
-      const mouseX = krpanoInstance.get("mouse.x");
-      const mouseY = krpanoInstance.get("mouse.y");
-
-      const coordinateDisplay = document.getElementById("coordinateDisplay");
-      coordinateDisplay.innerText = `Coordinates: x=${mouseX}, y=${mouseY}`;
-    };
-
-    // Add editable text field to the hotspot
-    secondHotspot.editable = true;
-    secondHotspot.editenterkey = "newline";
-    secondHotspot.oneditstop = function() {
-      console.log("Editing stopped for hotspot:", secondHotspot.name);
-    };
+  
+    // Create a unique hotspot and set its onclick/oneditstop via krpano calls
+    const hotspotName = `hotspot_${Date.now()}`;
+    krpanoInstance.call(`addhotspot(${hotspotName})`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].type, text)`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].text, "New Hotspot")`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].ath, ${krpanoInstance.screentosphere(x, y).x})`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].atv, ${krpanoInstance.screentosphere(x, y).y})`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].editable, false)`);
+  
+    // Assign JS callbacks for selecting/unselecting
+    krpanoInstance.call(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
+    krpanoInstance.call(`set(hotspot[${hotspotName}].oneditstop, "js(unselectHotspot('${hotspotName}'))")`);
   }
-
+  
+  
+   
   function onKRPanoError(err) {
     console.error("Error embedding krpano", err);
     // eslint-disable-next-line no-undef
