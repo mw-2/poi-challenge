@@ -3,10 +3,10 @@ const KRPANO_VIEWER_ID = "krpano-viewer";
 
 let krpanoInstance = null; // Declare krpanoInstance outside the function
 let hotspotData = {}; // Declare hotspotData outside the function
+let selectedHotspot = null; // Declare selectedHotspot outside the function
 
 const loadKrpano = () => {
   let xmlStr;
-  let selectedHotspot = null;
 
   // Function to safely call krpano functions
   const callKrpano = (command) => {
@@ -97,7 +97,7 @@ const loadKrpano = () => {
           const hotspot = hotspots[i];
           const hotspotName = hotspot.name; // Store the hotspot name
           callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "js(saveHotspotData('${hotspotName}')); js(unselectHotspot('${hotspotName}'))")`);
+          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
         }
       } else {
         console.warn('No hotspots found to attach events to.');
@@ -138,7 +138,7 @@ const loadKrpano = () => {
         set(layer[popupcontent].css, color:black; font-size:14px;);
         set(layer[popupcontent].editable, true);
         set(layer[popupcontent].editenterkey, newline);
-        set(layer[popupcontent].oneditstop, "js(saveHotspotData(currentHotspotName));");
+        set(layer[popupcontent].oneditstop, "save_hotspot_data(currentHotspotName)");
       `);
 
       // Attach hotspot events after krpano is ready and XML is loaded
@@ -158,8 +158,9 @@ const loadKrpano = () => {
         }
 
         try {
-          callKrpano(`removehotspot(${selectedHotspot.name})`);
-          delete hotspotData[selectedHotspot.name]; // Remove from local storage
+          const hotspotName = selectedHotspot.name;
+          callKrpano(`removehotspot(${hotspotName})`);
+          delete hotspotData[hotspotName]; // Remove from local storage
           localStorage.setItem('hotspotData', JSON.stringify(hotspotData)); // Save to local storage
           selectedHotspot = null; // Clear the selected hotspot after removal
 
@@ -191,9 +192,16 @@ const loadKrpano = () => {
           callKrpano(`set(hotspot[${hotspotName}].atv, ${hotspot.atv})`);
           callKrpano(`set(hotspot[${hotspotName}].editable, true)`); // Make it editable
           callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "js(saveHotspotData('${hotspotName}')); js(unselectHotspot('${hotspotName}'))")`);
+          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
         });
       }
+
+      krpano.call(`
+        <!-- Define the action to save hotspot data -->
+        <action name="save_hotspot_data">
+          js(saveHotspotData( %1 ));
+        </action>
+      `);
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
@@ -216,7 +224,7 @@ const loadKrpano = () => {
 
     // Assign JS callbacks for selecting/unselecting
     callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-    callKrpano(`set(hotspot[${hotspotName}].oneditstop, "js(saveHotspotData('${hotspotName}')); js(unselectHotspot('${hotspotName}'))")`);
+    callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
 
     // Save the new hotspot data
     hotspotData[hotspotName] = {
@@ -229,9 +237,10 @@ const loadKrpano = () => {
 
   function saveHotspotData(hotspotName) {
     const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
+    const popupcontent = krpanoInstance.get("layer[popupcontent]");
     if (hotspot) {
       hotspotData[hotspotName] = {
-        text: hotspot.text,
+        text: popupcontent.html,
         ath: hotspot.ath,
         atv: hotspot.atv
       };
