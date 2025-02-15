@@ -10,14 +10,14 @@ const loadKrpano = () => {
     try {
       krpano.call(`loadxml(${xmlStr})`);
 
-      // Add event listener for mouse clicks
-      document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('click', onViewerClick);
+      // Add event listener for mouse double-clicks
+      document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('dblclick', onViewerDoubleClick);
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
   }
 
-  function onViewerClick(event) {
+  function onViewerDoubleClick(event) {
     const x = event.clientX;
     const y = event.clientY;
 
