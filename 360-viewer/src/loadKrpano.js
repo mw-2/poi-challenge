@@ -1,60 +1,130 @@
 const KRPANO_VIEWER_TARGET_ID = "krpano-target";
 const KRPANO_VIEWER_ID = "krpano-viewer";
 
+let krpanoInstance = null; // Declare krpanoInstance outside the function
+
 const loadKrpano = () => {
   let xmlStr;
-  let krpanoInstance;
   let selectedHotspot = null;
-  
-  window.selectHotspot = function (hotspotName) {
-    const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
-    if (!hotspot) return;
-  
-    // Un-highlight any previously selected hotspot
-    if (selectedHotspot) {
-      selectedHotspot.bordercolor = null;
+
+  // Function to safely call krpano functions
+  const callKrpano = (command) => {
+    if (krpanoInstance && typeof krpanoInstance.call === 'function') {
+      try {
+        krpanoInstance.call(command);
+      } catch (error) {
+        console.error(`Krpano call error for command "${command}":`, error);
+      }
+    } else {
+      console.warn('krpanoInstance not ready or call function not available.');
     }
-  
-    // Select & highlight it
-    selectedHotspot = hotspot;
-    hotspot.bordercolor = "0xFF0000";
-    hotspot.borderwidth = 2;
-    hotspot.editable = true; // Make it editable immediately after selection
   };
-  
+
+  window.selectHotspot = function (hotspotName) {
+    if (!krpanoInstance) {
+      console.warn('krpanoInstance not ready.');
+      return;
+    }
+
+    try {
+      const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
+      if (!hotspot) {
+        console.warn(`Hotspot "${hotspotName}" not found.`);
+        return;
+      }
+
+      // Un-highlight any previously selected hotspot
+      if (selectedHotspot) {
+        selectedHotspot.bordercolor = null;
+        selectedHotspot.borderwidth = null;
+        selectedHotspot.editable = false;
+      }
+
+      // Select & highlight it
+      selectedHotspot = hotspot;
+      hotspot.bordercolor = "0xFF0000";
+      hotspot.borderwidth = 2;
+      hotspot.editable = true; // Make it editable immediately after selection
+    } catch (error) {
+      console.error("Error selecting hotspot:", error);
+    }
+  };
+
   window.unselectHotspot = function (hotspotName) {
-    const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
-    if (!hotspot) return;
-    hotspot.bordercolor = null;
-    hotspot.editable = false;
-    selectedHotspot = null;
+    if (!krpanoInstance) {
+      console.warn('krpanoInstance not ready.');
+      return;
+    }
+
+    try {
+      const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
+      if (!hotspot) {
+        console.warn(`Hotspot "${hotspotName}" not found.`);
+        return;
+      }
+      hotspot.bordercolor = null;
+      hotspot.borderwidth = null;
+      hotspot.editable = false;
+      selectedHotspot = null;
+    } catch (error) {
+      console.error("Error unselecting hotspot:", error);
+    }
   };
-  
+
+  function attachHotspotEvents() {
+    if (!krpanoInstance) {
+      console.warn('krpanoInstance not ready to attach hotspot events. Retrying...');
+      setTimeout(attachHotspotEvents, 500); // Retry after 500ms
+      return;
+    }
+
+    try {
+      // Attach onclick event to existing hotspots
+      const hotspots = krpanoInstance.get("hotspot"); // Get all hotspots
+      if (hotspots && hotspots.length > 0) {
+        for (let i = 0; i < hotspots.length; i++) {
+          const hotspot = hotspots[i];
+          const hotspotName = hotspot.name; // Store the hotspot name
+          callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
+          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "js(unselectHotspot('${hotspotName}'))")`);
+        }
+      } else {
+        console.warn('No hotspots found to attach events to.');
+      }
+    } catch (error) {
+      console.error("Error attaching hotspot events:", error);
+    }
+  }
+
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
-  
-      // Attach onclick event to existing hotspots
-      const hotspots = krpanoInstance.get("hotspot"); // Get all hotspots
-      for (let i = 0; i < hotspots.length; i++) {
-        const hotspot = hotspots[i];
-        krpanoInstance.call(`set(hotspot[${hotspot.name}].onclick, "js(selectHotspot('${hotspot.name}'))")`);
-        krpanoInstance.call(`set(hotspot[${hotspot.name}].oneditstop, "js(unselectHotspot('${hotspot.name}'))")`);
-      }
-  
+
+      // Attach hotspot events after krpano is ready and XML is loaded
+      attachHotspotEvents();
+
       // Listen for double-click to create a new hotspot
-      document
-        .getElementById(KRPANO_VIEWER_TARGET_ID)
-        .addEventListener("dblclick", onViewerDoubleClick);
-  
+      const viewerTarget = document.getElementById(KRPANO_VIEWER_TARGET_ID);
+      if (viewerTarget) {
+        viewerTarget.addEventListener("dblclick", onViewerDoubleClick);
+      }
+
       // Helper for deleting the selected hotspot
       function removeSelectedHotspot() {
-        if (!selectedHotspot) return;
-        krpanoInstance.call(`removehotspot(${selectedHotspot.name})`);
-        selectedHotspot = null;
+        if (!selectedHotspot) {
+          console.warn('No hotspot selected to remove.');
+          return;
+        }
+
+        try {
+          callKrpano(`removehotspot(${selectedHotspot.name})`);
+          selectedHotspot = null; // Clear the selected hotspot after removal
+        } catch (error) {
+          console.error("Error removing hotspot:", error);
+        }
       }
-  
+
       // Add 'Delete' key listener for removing selected hotspot
       document.addEventListener("keydown", (event) => {
         if (event.key === "Delete") {
@@ -65,27 +135,28 @@ const loadKrpano = () => {
       console.error("Error loading krpano xml", err);
     }
   }
-  
+
   function onViewerDoubleClick(event) {
+    if (!krpanoInstance) return; // Ensure krpanoInstance is valid
+
     const x = event.clientX;
     const y = event.clientY;
-  
+
     // Create a unique hotspot and set its onclick/oneditstop via krpano calls
     const hotspotName = `hotspot_${Date.now()}`;
-    krpanoInstance.call(`addhotspot(${hotspotName})`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].type, text)`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].text, "New Hotspot")`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].ath, ${krpanoInstance.screentosphere(x, y).x})`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].atv, ${krpanoInstance.screentosphere(x, y).y})`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].editable, false)`);
-  
+    callKrpano(`addhotspot(${hotspotName})`);
+    callKrpano(`set(hotspot[${hotspotName}].type, text)`);
+    callKrpano(`set(hotspot[${hotspotName}].text, "New Hotspot")`);
+    callKrpano(`set(hotspot[${hotspotName}].ath, ${krpanoInstance.screentosphere(x, y).x})`);
+    callKrpano(`set(hotspot[${hotspotName}].atv, ${krpanoInstance.screentosphere(x, y).y})`);
+    callKrpano(`set(hotspot[${hotspotName}].editable, false)`);
+
     // Assign JS callbacks for selecting/unselecting
-    krpanoInstance.call(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-    krpanoInstance.call(`set(hotspot[${hotspotName}].oneditstop, "js(unselectHotspot('${hotspotName}'))")`);
+    callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
+    callKrpano(`set(hotspot[${hotspotName}].oneditstop, "js(unselectHotspot('${hotspotName}'))")`);
   }
-  
-  
-   
+
+
   function onKRPanoError(err) {
     console.error("Error embedding krpano", err);
     // eslint-disable-next-line no-undef
@@ -93,6 +164,18 @@ const loadKrpano = () => {
     const target = document.getElementById(KRPANO_VIEWER_TARGET_ID);
     target.remove();
   }
+
+  // Function to remove the krpano viewer
+  function removeKrpanoViewer() {
+    const krpanoElement = document.getElementById(KRPANO_VIEWER_ID);
+    if (krpanoElement) {
+      krpanoElement.parentNode.removeChild(krpanoElement);
+    }
+    krpanoInstance = null;
+  }
+
+  // Remove the krpano viewer before embedding a new instance
+  removeKrpanoViewer();
 
   fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
     .then((res) => res.text())
