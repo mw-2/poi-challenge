@@ -29,16 +29,23 @@ const loadKrpano = () => {
     secondHotspot.atv = krpanoInstance.screentosphere(x, y).y;
 
     secondHotspot.onclick = function() {
-      const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
-      if (newName) {
-        secondHotspot.name = newName; // Update the hotspot name
-        secondHotspot.text = newName; // Update the displayed text of the hotspot
-      }
+      //const newName = prompt("Enter new name for the hotspot:", secondHotspot.name);
+      //if (newName) {
+        //secondHotspot.name = newName; // Update the hotspot name
+        //secondHotspot.text = newName; // Update the displayed text of the hotspot
+      // }
       const mouseX = krpanoInstance.get("mouse.x");
       const mouseY = krpanoInstance.get("mouse.y");
 
       const coordinateDisplay = document.getElementById("coordinateDisplay");
       coordinateDisplay.innerText = `Coordinates: x=${mouseX}, y=${mouseY}`;
+    };
+
+    // Add editable text field to the hotspot
+    secondHotspot.editable = true;
+    secondHotspot.editenterkey = "newline";
+    secondHotspot.oneditstop = function() {
+      console.log("Editing stopped for hotspot:", secondHotspot.name);
     };
   }
 
