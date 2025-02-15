@@ -9,13 +9,18 @@ const loadKrpano = () => {
       krpano.call(`loadxml(${xmlStr})`);
       
       var secondHotspot = krpano.addhotspot(null);
+      secondHotspot.name = "secondHotspot"; // Ensure the hotspot has a name
       secondHotspot.type = "text";
       secondHotspot.text = "Second Hotspot";
       secondHotspot.ath = 40;
       secondHotspot.atv = 20;
       secondHotspot.onclick = function() {
-        alert("Second Hotspot Clicked");
+        const x = krpano.get("mouse.x");
+        const y = krpano.get("mouse.y");
+        const coordinateDisplay = document.getElementById("coordinateDisplay");
+        coordinateDisplay.innerText = `Coordinates: x=${x}, y=${y}`;
       };
+    
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
