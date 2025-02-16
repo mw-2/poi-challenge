@@ -639,6 +639,15 @@ const loadKrpano = (panoramaUrl) => {
     const appElement = document.getElementById('app');
     if (appElement) {
       appElement.appendChild(targetDiv);
+
+      // Ensure map container exists and stays on top
+      let mapContainer = document.getElementById('map');
+      if (mapContainer) {
+        // Move map to the end of app element to keep it on top
+        appElement.appendChild(mapContainer);
+        // Update z-index to ensure it stays above the viewer
+        mapContainer.style.zIndex = '1000';
+      }
     } else {
       console.error('App element not found');
       return;

@@ -17,7 +17,7 @@ const MapView = ({ hotspots, userPosition, isLoading }) => {
   const mapStyle = {
     width: `${mapSize}px`,
     height: `${mapSize}px`,
-    position: 'absolute',
+    position: 'fixed',
     bottom: '10px',
     right: '10px',
     backgroundColor: '#f0f0f0',
@@ -25,9 +25,13 @@ const MapView = ({ hotspots, userPosition, isLoading }) => {
     borderRadius: '5px',
     boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
     padding: '10px',
-    backgroundImage: 'url(/map-background.png)', // Ensure the image is in the public directory
-    backgroundSize: 'cover', // Ensure the image covers the entire map area
-    backgroundPosition: 'center', // Center the image
+    zIndex: '1000',
+    pointerEvents: 'auto',
+    isolation: 'isolate', // This prevents the map from inheriting parent's filter
+    mixBlendMode: 'normal', // This ensures normal color blending
+    backgroundImage: 'url(/map-background.png)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
   };
 
   const hotspotStyle = {
