@@ -25,6 +25,9 @@ const MapView = ({ hotspots, userPosition, isLoading }) => {
     borderRadius: '5px',
     boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
     padding: '10px',
+    backgroundImage: 'url(/map-background.png)', // Ensure the image is in the public directory
+    backgroundSize: 'cover', // Ensure the image covers the entire map area
+    backgroundPosition: 'center', // Center the image
   };
 
   const hotspotStyle = {
@@ -48,7 +51,7 @@ const MapView = ({ hotspots, userPosition, isLoading }) => {
 
   return (
     <div id="map" style={mapStyle}>
-      <h3>Hotspot Map</h3>
+      <h3 style={{ color: 'white' }}>Hotspot Map</h3>
       {hotspots.map(hotspot => {
         const x = normalizeCoordinateX(hotspot.ath);
         const y = normalizeCoordinateY(hotspot.atv);
