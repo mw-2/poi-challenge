@@ -1,0 +1,75 @@
+<krpano>
+  <!-- ...existing code... -->
+
+  <!-- YouTube player settings -->
+  <youtubeplayer_settings
+    maxsize="0.80"
+    parameters="autoplay=1&amp;autohide=1&amp;controls=1&amp;loop=0&amp;modestbranding=0&amp;rel=0&amp;showinfo=0&amp;hd=1&amp;vq=hd720"
+  />
+
+  <action name="youtubeplayer_open">
+    if(layer[youtubeplayer_bg],
+      trace('youtubeplayer_open - there is already a youtubeplayer!');
+    ,
+      addlayer(youtubeplayer_bg);
+      set(layer[youtubeplayer_bg].type, container);
+      set(layer[youtubeplayer_bg].zorder, 999999);
+      set(layer[youtubeplayer_bg].safearea, false);
+      set(layer[youtubeplayer_bg].align, lefttop);
+      set(layer[youtubeplayer_bg].width, 50%);
+      set(layer[youtubeplayer_bg].height, 50%);
+      set(layer[youtubeplayer_bg].bgcolor, 0x000000);
+      set(layer[youtubeplayer_bg].bgalpha, 0.8);
+      set(layer[youtubeplayer_bg].bgcapture, true);
+      set(layer[youtubeplayer_bg].handcursor, false);
+      set(layer[youtubeplayer_bg].alpha, 0.0);
+      set(layer[youtubeplayer_bg].onclick, youtubeplayer_close() );
+      tween(layer[youtubeplayer_bg].alpha, 1.0, 0.5, default,
+        addlayer(youtubeplayer_plugin);
+        set(layer[youtubeplayer_plugin].parent, layer[youtubeplayer_bg]);
+        set(layer[youtubeplayer_plugin].align, center);
+        set(layer[youtubeplayer_plugin].alpha, 0.0);
+
+        div(aspect, 16, 9);
+        mul(new_videowidth, stagewidth, youtubeplayer_settings.maxsize);
+        div(new_videoheight, new_videowidth, aspect);
+        mul(max_videoheight, stageheight, youtubeplayer_settings.maxsize);
+        if(new_videoheight GT max_videoheight,
+          copy(new_videoheight, max_videoheight);
+          mul(new_videowidth, new_videoheight, aspect);
+        );
+        roundval(new_videowidth);
+        roundval(new_videoheight);
+        copy(layer[youtubeplayer_plugin].width, new_videowidth);
+        copy(layer[youtubeplayer_plugin].height, new_videoheight);
+
+        txtadd(iframecode, '[iframe width="',get(layer[youtubeplayer_plugin].width),'" height="',get(layer[youtubeplayer_plugin].height),'" src="https://www.youtube.com/embed/','%1','?',get(youtubeplayer_settings.parameters),'" frameborder="0" allowfullscreen][/iframe]');
+        copy(layer[youtubeplayer_plugin].html, iframecode);
+        set(layer[youtubeplayer_plugin].padding, 0);
+        set(layer[youtubeplayer_plugin].type, text);
+        set(layer[youtubeplayer_plugin].interactivecontent, true);
+        set(layer[youtubeplayer_plugin].onloaded, youtubeplayer_plugin_ready() );
+      );
+    );
+  </action>
+
+  <action name="youtubeplayer_plugin_ready">
+    if(layer[youtubeplayer_plugin],
+      tween(layer[youtubeplayer_plugin].alpha, 1.0);
+    );
+  </action>
+
+  <action name="youtubeplayer_close">
+    set(layer[youtubeplayer_bg].onclick, null);
+    tween(layer[youtubeplayer_plugin].alpha, 0.0, 0.25, default);
+    tween(layer[youtubeplayer_bg].alpha,0.0, 0.50, default,
+      removelayer(youtubeplayer_bg);
+      removelayer(youtubeplayer_plugin);
+    );
+  </action>
+
+  <!-- Add YouTube icon hotspot with link -->
+  <hotspot name="youtube_icon" url="%SWFPATH%/../youtube_icon.png" ath="0" atv="0" scale="0.5" onclick="openurl('https://www.youtube.com/watch?v=xvFZjo5PgG0', '_blank');" />
+
+  <!-- ...existing code... -->
+</krpano>

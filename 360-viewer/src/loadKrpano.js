@@ -27,33 +27,33 @@ const loadKrpano = () => {
       console.warn('krpanoInstance not ready.');
       return;
     }
-  
+
     try {
       const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
       if (!hotspot) {
         console.warn(`Hotspot "${hotspotName}" not found.`);
         return;
       }
-  
+
       // Un-highlight any previously selected hotspot and hide its popup
       if (selectedHotspot) {
         const prevHotspotName = selectedHotspot.name;
         selectedHotspot.bordercolor = null;
         selectedHotspot.borderwidth = null;
         selectedHotspot.editable = false;
-  
+
         // Hide previous popup if it exists
         if (activePopups[prevHotspotName]) {
           activePopups[prevHotspotName].popup.visible = false;
         }
       }
-  
+
       // Select & highlight new hotspot
       selectedHotspot = hotspot;
       hotspot.bordercolor = "0xFF0000";
       hotspot.borderwidth = 2;
       hotspot.editable = true;
-  
+
       // Check if popup already exists for this hotspot
       if (!activePopups[hotspotName]) {
         // Create a new popup for this hotspot
@@ -85,21 +85,21 @@ const loadKrpano = () => {
           set(layer[${popupContentName}].editable, true);
           set(layer[${popupContentName}].editenterkey, newline);
         `);
-  
+
         const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
         popupContent.html = hotspotData[hotspotName]?.text || hotspot.text;
-  
+
         activePopups[hotspotName] = {
           popup: krpanoInstance.get(`layer[${popupName}]`),
           content: popupContent
         };
       }
-  
+
       // Hide all other popups and show only the current one
       Object.keys(activePopups).forEach(name => {
         activePopups[name].popup.visible = name === hotspotName;
       });
-  
+
     } catch (error) {
       console.error("Error selecting hotspot:", error);
     }
@@ -110,7 +110,7 @@ const loadKrpano = () => {
       console.warn('krpanoInstance not ready.');
       return;
     }
-  
+
     try {
       const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
       if (!hotspot) {
@@ -122,7 +122,7 @@ const loadKrpano = () => {
       hotspot.borderwidth = null;
       hotspot.editable = false;
       selectedHotspot = null;
-  
+
       // Hide the popup
       if (activePopups[hotspotName]) {
         activePopups[hotspotName].popup.visible = false;
@@ -259,6 +259,16 @@ const loadKrpano = () => {
           callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
         });
       }
+
+      // Initialize YouTube icon hotspot
+      callKrpano(`
+        addhotspot(youtube_icon);
+        set(hotspot[youtube_icon].url, "%SWFPATH%/youtube_icon.png");
+        set(hotspot[youtube_icon].ath, 35.3);
+        set(hotspot[youtube_icon].atv, 19.8);
+        set(hotspot[youtube_icon].scale, 0.010);
+        set(hotspot[youtube_icon].onclick, "openurl('https://www.youtube.com/watch?v=xvFZjo5PgG0', '_blank')");
+      `);
 
       krpano.call(`
         <!-- Define the action to save hotspot data -->
