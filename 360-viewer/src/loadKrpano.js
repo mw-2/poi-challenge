@@ -1,19 +1,37 @@
+import React from 'react'; // Ensure React is imported
+import ReactDOM from 'react-dom/client'; // Import ReactDOM from 'react-dom/client'
+import MapView from './MapView'; // Import the new MapView component
+
 const KRPANO_VIEWER_TARGET_ID = "krpano-target";
 const KRPANO_VIEWER_ID = "krpano-viewer";
 
 const loadKrpano = () => {
   let xmlStr;
   let krpanoInstance;
+  let hotspots = []; // New state to manage hotspots
+  let userPosition = null; // New state to manage user position
+
+  // Function to update user position
+  const updateUserPosition = (position) => {
+    userPosition = {
+      ath: position.coords.longitude, // Assuming ath corresponds to longitude
+      atv: position.coords.latitude // Assuming atv corresponds to latitude
+    };
+    updateMap(); // Update the map with the new user position
+  };
+
+  // Get user's current position
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(updateUserPosition);
+  }
 
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
-
-      // Load saved hotspots from localStorage
       loadSavedHotspots();
+      updateMap(); // Update the map with hotspots
 
-      // Add event listener for mouse double-clicks
       document.getElementById(KRPANO_VIEWER_TARGET_ID).addEventListener('dblclick', onViewerDoubleClick);
     } catch (err) {
       console.error("Error loading krpano xml", err);
@@ -46,6 +64,33 @@ const loadKrpano = () => {
       console.log("Editing stopped for hotspot:", secondHotspot.name);
       saveHotspot(secondHotspot); // Save the hotspot when editing stops
     };
+
+    hotspots.push(secondHotspot); // Add the new hotspot to the hotspots array
+    updateMap(); // Update the map with the new hotspot
+  }
+
+  function updateMap() {
+    const mapContainer = document.getElementById('map');
+    if (mapContainer) {
+      const mapWidth = mapContainer.clientWidth;
+      const mapHeight = mapContainer.clientHeight;
+
+      // Convert hotspot positions to percentage
+      const hotspotsWithPercentage = hotspots.map(hotspot => ({
+        ...hotspot,
+        ath: (hotspot.ath / 360) * 100, // Convert ath to percentage
+        atv: (hotspot.atv / 180) * 100  // Convert atv to percentage
+      }));
+
+      // Convert user position to percentage
+      const userPositionWithPercentage = userPosition ? {
+        ath: (userPosition.ath / 360) * 100,
+        atv: (userPosition.atv / 180) * 100
+      } : null;
+
+      const root = ReactDOM.createRoot(mapContainer); // Create a root for the map container
+      root.render(<MapView hotspots={hotspotsWithPercentage} userPosition={userPositionWithPercentage} />); // Render the MapView component
+    }
   }
 
   // Function to save hotspot data to localStorage
