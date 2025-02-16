@@ -16,6 +16,69 @@ let userPositionLoading = false; // Add a loading state
 const loadKrpano = () => {
   let xmlStr;
 
+  // Function to save hotspots to a file
+  const saveHotspotsToFile = () => {
+    const dataStr = JSON.stringify(hotspotData);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+    const exportFileDefaultName = 'hotspots.json';
+
+    let linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    document.body.removeChild(linkElement);
+  };
+
+  // Function to load hotspots from a file
+  const loadHotspotsFromFile = () => {
+    try {
+      // Create an input element to select the file
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const fileContent = JSON.parse(e.target.result);
+              hotspotData = fileContent;
+              // After loading, re-add hotspots to krpano
+              Object.keys(hotspotData).forEach(hotspotName => {
+                const hotspot = hotspotData[hotspotName];
+                callKrpano(`addhotspot(${hotspotName})`);
+                callKrpano(`set(hotspot[${hotspotName}].type, text)`);
+                callKrpano(`set(hotspot[${hotspotName}].text, "${hotspot.text}")`);
+                callKrpano(`set(hotspot[${hotspotName}].ath, ${hotspot.ath})`);
+                callKrpano(`set(hotspot[${hotspotName}].atv, ${hotspot.atv})`);
+                callKrpano(`set(hotspot[${hotspotName}].editable, true)`); // Make it editable
+                callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))");`);
+                callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+              });
+              updateMap(); // Update the map after loading hotspots
+            } catch (error) {
+              console.error('Error parsing JSON file:', error);
+            }
+          };
+          reader.readAsText(file);
+        }
+      };
+      input.click(); // Programmatically trigger the file selection
+    } catch (error) {
+      console.error('Error loading hotspots from file:', error);
+    }
+  };
+
+  // Make the saveHotspotsToFile function globally accessible
+  window.saveHotspotsToFile = saveHotspotsToFile;
+
+  // Make the loadHotspotsFromFile function globally accessible
+  window.loadHotspotsFromFile = loadHotspotsFromFile;
+
   // Function to safely call krpano functions
   const callKrpano = (command) => {
     if (krpanoInstance && typeof krpanoInstance.call === 'function') {
@@ -66,7 +129,7 @@ const loadKrpano = () => {
         // Create a new popup for this hotspot
         const popupName = `popup_${hotspotName}`;
         const popupContentName = `popupcontent_${hotspotName}`;
-        
+
         krpanoInstance.call(`
           addlayer(${popupName});
           set(layer[${popupName}].type, container);
@@ -124,7 +187,7 @@ const loadKrpano = () => {
         console.warn(`Hotspot "${hotspotName}" not found.`);
         return;
       }
-      
+
       hotspot.bordercolor = null;
       hotspot.borderwidth = null;
       hotspot.editable = false;
@@ -163,13 +226,16 @@ const loadKrpano = () => {
       console.error("Error attaching hotspot events:", error);
     }
   }
- 
+
 
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
       updateMap(); // Update the map with hotspots
+
+      // Load hotspots from file on Krpano ready
+      loadHotspotsFromFile();
 
       // Create the popup layer
       krpano.call(`
@@ -215,35 +281,78 @@ const loadKrpano = () => {
           console.warn('No hotspot selected to remove.');
           return;
         }
-      
+
         try {
           const hotspotName = selectedHotspot.name;
-          
+
           // Remove the hotspot
           callKrpano(`removehotspot(${hotspotName})`);
-          
+
           // Remove popup layers if they exist
           if (activePopups[hotspotName]) {
             const popupName = `popup_${hotspotName}`;
             const popupContentName = `popupcontent_${hotspotName}`;
-            
+
             callKrpano(`removelayer(${popupContentName})`);
             callKrpano(`removelayer(${popupName})`);
-            
+
             // Remove from activePopups
             delete activePopups[hotspotName];
           }
-          
+
           // Remove from hotspotData and update localStorage
           delete hotspotData[hotspotName];
           localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
-          
+
           // Clear selected hotspot
           selectedHotspot = null;
         } catch (error) {
           console.error("Error removing hotspot:", error);
         }
       }
+
+      // Helper for deleting all hotspots
+      function removeAllHotspots() {
+        try {
+          // Get all hotspot names
+          const hotspotNames = Object.keys(hotspotData);
+
+          // Remove each hotspot
+          hotspotNames.forEach(hotspotName => {
+            callKrpano(`removehotspot(${hotspotName})`);
+
+            // Remove popup layers if they exist
+            if (activePopups[hotspotName]) {
+              const popupName = `popup_${hotspotName}`;
+              const popupContentName = `popupcontent_${hotspotName}`;
+
+              callKrpano(`removelayer(${popupContentName})`);
+              callKrpano(`removelayer(${popupName})`);
+
+              // Remove from activePopups
+              delete activePopups[hotspotName];
+            }
+
+            // Remove from hotspotData
+            delete hotspotData[hotspotName];
+          });
+
+          // Clear local storage
+          localStorage.removeItem('hotspotData');
+
+          // Clear selected hotspot
+          selectedHotspot = null;
+
+          // Update the map
+          updateMap();
+
+        } catch (error) {
+          console.error("Error removing all hotspots:", error);
+        }
+      }
+
+      // Make removeAllHotspots globally accessible
+      window.removeAllHotspots = removeAllHotspots;
 
       // Add 'Delete' key listener for removing selected hotspot
       document.addEventListener("keydown", (event) => {
@@ -285,7 +394,7 @@ const loadKrpano = () => {
           js(saveHotspotData( %1 ));
         </action>
       `);
-      
+
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
@@ -312,12 +421,12 @@ const loadKrpano = () => {
 
     // Save the new hotspot data
     hotspotData[hotspotName] = {
-        text: "New Hotspot",
-        ath: krpanoInstance.screentosphere(x, y).x,
-        atv: krpanoInstance.screentosphere(x, y).y
+      text: "New Hotspot",
+      ath: krpanoInstance.screentosphere(x, y).x,
+      atv: krpanoInstance.screentosphere(x, y).y
     };
     saveHotspotData(hotspotName);
-    
+
     // Add this line to update the map when a new hotspot is created
     updateMap();
   }
@@ -339,32 +448,32 @@ const loadKrpano = () => {
   function saveHotspotData(hotspotName) {
     const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
     const popupContent = activePopups[hotspotName]?.content;
-    
+
     if (hotspot && popupContent) {
       hotspotData[hotspotName] = {
-          text: popupContent.html,
-          ath: hotspot.ath,
-          atv: hotspot.atv
+        text: popupContent.html,
+        ath: hotspot.ath,
+        atv: hotspot.atv
       };
       localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
-      
+
       // Save to server
       fetch('/api/data', {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ hotspots: hotspotData })
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ hotspots: hotspotData })
       })
-      .then(response => response.json())
-      .then(data => {
+        .then(response => response.json())
+        .then(data => {
           console.log('Hotspot data saved:', data);
           // Add this line to update the map when hotspot data is saved
           updateMap();
-      })
-      .catch(error => {
+        })
+        .catch(error => {
           console.error('Error saving hotspot data:', error);
-      });
+        });
     }
   }
 
