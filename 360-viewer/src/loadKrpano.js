@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
+import Select from 'react-select';
 import MapView from './MapView';
 
 /* global removepano, embedpano */
@@ -25,13 +26,13 @@ const loadKrpano = () => {
       },
       body: JSON.stringify(hotspotData)
     })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Hotspot data saved to backend:', data);
-    })
-    .catch(error => {
-      console.error('Error saving hotspot data to backend:', error);
-    });
+      .then(response => response.json())
+      .then(data => {
+        console.log('Hotspot data saved to backend:', data);
+      })
+      .catch(error => {
+        console.error('Error saving hotspot data to backend:', error);
+      });
   };
 
   const loadHotspotsFromFile = () => {
@@ -96,9 +97,9 @@ const loadKrpano = () => {
 
       if (selectedHotspot) {
         const prevHotspotName = selectedHotspot.name;
-        const prevPopupName = `popup_${prevHotspotName}`;
         if (activePopups[prevHotspotName]) {
           activePopups[prevHotspotName].popup.visible = false;
+          document.getElementById(`popupselect_${prevHotspotName}`).style.display = 'none';
         }
         selectedHotspot.bordercolor = null;
         selectedHotspot.borderwidth = null;
@@ -113,7 +114,8 @@ const loadKrpano = () => {
       if (!activePopups[hotspotName]) {
         const popupName = `popup_${hotspotName}`;
         const popupContentName = `popupcontent_${hotspotName}`;
-        const popupTitleName = `popuptitle_${hotspotName}`; // New title layer
+        const popupTitleName = `popuptitle_${hotspotName}`;
+        const popupSelectName = `popupselect_${hotspotName}`;
 
         krpanoInstance.call(`
           addlayer(${popupName});
@@ -122,25 +124,25 @@ const loadKrpano = () => {
           set(layer[${popupName}].x, -10);
           set(layer[${popupName}].y, 10);
           set(layer[${popupName}].width, 300);
-          set(layer[${popupName}].height, 100);
+          set(layer[${popupName}].height, 200);
           set(layer[${popupName}].bgcolor, 0xFFFFFF);
           set(layer[${popupName}].bgalpha, 1);
           set(layer[${popupName}].bgborder, 1 0x777777 0.5);
           set(layer[${popupName}].bgroundedge, 7);
           set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
           set(layer[${popupName}].visible, true);
-
+  
           addlayer(${popupTitleName});
           set(layer[${popupTitleName}].parent, ${popupName});
           set(layer[${popupTitleName}].type, text);
           set(layer[${popupTitleName}].align, lefttop);
           set(layer[${popupTitleName}].html, '<b>POI Comment Section</b>');
           set(layer[${popupTitleName}].width, 100%);
-          set(layer[${popupTitleName}].height, 20); // Adjust height as needed
+          set(layer[${popupTitleName}].height, 20);
           set(layer[${popupTitleName}].css, color:black; font-size:12px; font-weight: bold; text-align: center;);
           set(layer[${popupTitleName}].bgalpha, 0.0);
           set(layer[${popupTitleName}].y, 0);
-
+  
           addlayer(${popupContentName});
           set(layer[${popupContentName}].parent, ${popupName});
           set(layer[${popupContentName}].type, text);
@@ -151,23 +153,46 @@ const loadKrpano = () => {
           set(layer[${popupContentName}].css, color:black; font-size:14px;);
           set(layer[${popupContentName}].editable, true);
           set(layer[${popupContentName}].editenterkey, newline);
-          set(layer[${popupContentName}].y, 20); // Shift content below the title
+          set(layer[${popupContentName}].y, 20);
           set(layer[${popupContentName}].oneditstop, "js(saveHotspotData(get(caller.parent.name.substr(6))))");
         `);
 
         const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
         popupContent.html = hotspotData[hotspotName]?.text || hotspot.text;
 
+        const popupSelect = document.createElement('div');
+        popupSelect.id = popupSelectName;
+        popupSelect.style.position = 'fixed';
+        popupSelect.style.top = '10px'; // Position below the popup box
+        popupSelect.style.right = '10px';
+        popupSelect.style.width = '280px';
+        document.body.appendChild(popupSelect);
+
+        const root = ReactDOM.createRoot(popupSelect);
+        root.render(
+          <Select
+            options={options}
+            isMulti
+            onChange={(selectedOptions) => {
+              const selectedValues = selectedOptions.map(option => option.value);
+              hotspotData[hotspotName].properties = selectedValues;
+              saveHotspotData(hotspotName);
+            }}
+          />
+        );
+
         activePopups[hotspotName] = {
           popup: krpanoInstance.get(`layer[${popupName}]`),
-          content: popupContent
+          content: popupContent,
+          select: popupSelect
         };
       }
 
-      // Show the popup for the selected hotspot and hide the others
+      // Show the popup and multiselect for the selected hotspot and hide the others
       Object.keys(activePopups).forEach(name => {
         if (activePopups[name].content !== document.activeElement) {
           activePopups[name].popup.visible = (name === hotspotName);
+          document.getElementById(`popupselect_${name}`).style.display = (name === hotspotName) ? 'block' : 'none';
         }
       });
 
@@ -278,16 +303,16 @@ const loadKrpano = () => {
             'Content-Type': 'application/json'
           }
         })
-        .then(response => response.json())
-        .then(data => {
-          console.log('Hotspot deleted:', data);
-          delete hotspotData[hotspotName];
-          localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
-          updateMap();
-        })
-        .catch(error => {
-          console.error('Error deleting hotspot:', error);
-        });
+          .then(response => response.json())
+          .then(data => {
+            console.log('Hotspot deleted:', data);
+            delete hotspotData[hotspotName];
+            localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
+            updateMap();
+          })
+          .catch(error => {
+            console.error('Error deleting hotspot:', error);
+          });
       };
 
       function removeSelectedHotspot() {
@@ -295,29 +320,29 @@ const loadKrpano = () => {
           console.warn('No hotspot selected to remove.');
           return;
         }
-      
+
         try {
           const hotspotName = selectedHotspot.name;
           callKrpano(`removehotspot(${hotspotName})`);
-      
+
           if (activePopups[hotspotName]) {
             const popupName = `popup_${hotspotName}`;
             const popupContentName = `popupcontent_${hotspotName}`;
-      
+
             callKrpano(`removelayer(${popupContentName})`);
             callKrpano(`removelayer(${popupName})`);
-      
+
             delete activePopups[hotspotName];
           }
-      
+
           deleteHotspot(hotspotName); // Call the delete function
-      
+
           selectedHotspot = null;
         } catch (error) {
           console.error("Error removing hotspot:", error);
         }
       }
-      
+
 
       function removeAllHotspots() {
         try {
@@ -416,12 +441,14 @@ const loadKrpano = () => {
     }
   }
 
+  // filepath: /c:/Projects/poi-challenge/360-viewer/src/loadKrpano.js
   function saveHotspotData(hotspotName) {
     const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
     const popupContent = activePopups[hotspotName]?.content;
 
     if (hotspot && popupContent) {
       const newText = popupContent.html;
+      const properties = hotspotData[hotspotName].properties || [];
 
       // Update hotspot text in krpano
       callKrpano(`set(hotspot[${hotspotName}].text, ${newText})`);
@@ -430,7 +457,8 @@ const loadKrpano = () => {
       hotspotData[hotspotName] = {
         text: newText,
         ath: hotspot.ath,
-        atv: hotspot.atv
+        atv: hotspot.atv,
+        properties: properties
       };
 
       localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
@@ -453,6 +481,7 @@ const loadKrpano = () => {
     }
   }
 
+
   function onKRPanoError(err) {
     console.error("Error embedding krpano", err);
     removepano(KRPANO_VIEWER_ID);
@@ -471,6 +500,12 @@ const loadKrpano = () => {
   removeKrpanoViewer();
   updateMap();
 
+  const options = [
+    { value: 'Maintenance', label: 'Maintenance' },
+    { value: 'Safety', label: 'Safety' },
+    { value: 'Information', label: 'Information' }
+  ];
+
   function addHotspotWithPopup(hotspotName, text, ath, atv) {
     callKrpano(`addhotspot(${hotspotName})`);
     callKrpano(`set(hotspot[${hotspotName}].type, text)`);
@@ -481,12 +516,12 @@ const loadKrpano = () => {
     callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
     callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
     callKrpano(`set(hotspot[${hotspotName}].onhover, js(showHotspotPopup('${hotspotName}'))")`);
-    //callKrpano(`set(hotspot[${hotspotName}].onout, js(hideHotspotPopup('${hotspotName}'))")`);
 
     if (!activePopups[hotspotName]) {
       const popupName = `popup_${hotspotName}`;
       const popupContentName = `popupcontent_${hotspotName}`;
-      const popupTitleName = `popuptitle_${hotspotName}`; // New title layer
+      const popupTitleName = `popuptitle_${hotspotName}`;
+      const popupSelectName = `popupselect_${hotspotName}`;
 
       krpanoInstance.call(`
         addlayer(${popupName});
@@ -495,25 +530,25 @@ const loadKrpano = () => {
         set(layer[${popupName}].x, -10);
         set(layer[${popupName}].y, 10);
         set(layer[${popupName}].width, 300);
-        set(layer[${popupName}].height, 100);
+        set(layer[${popupName}].height, 200);
         set(layer[${popupName}].bgcolor, 0xFFFFFF);
         set(layer[${popupName}].bgalpha, 1);
         set(layer[${popupName}].bgborder, 1 0x777777 0.5);
         set(layer[${popupName}].bgroundedge, 7);
         set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
         set(layer[${popupName}].visible, true);
-
+  
         addlayer(${popupTitleName});
         set(layer[${popupTitleName}].parent, ${popupName});
         set(layer[${popupTitleName}].type, text);
         set(layer[${popupTitleName}].align, lefttop);
         set(layer[${popupTitleName}].html, '<b>POI Comment Section</b>');
         set(layer[${popupTitleName}].width, 100%);
-        set(layer[${popupTitleName}].height, 20); // Adjust height as needed
+        set(layer[${popupTitleName}].height, 20);
         set(layer[${popupTitleName}].css, color:black; font-size:12px; font-weight: bold; text-align: center;);
         set(layer[${popupTitleName}].bgalpha, 0.0);
         set(layer[${popupTitleName}].y, 0);
-
+  
         addlayer(${popupContentName});
         set(layer[${popupContentName}].parent, ${popupName});
         set(layer[${popupContentName}].type, text);
@@ -524,19 +559,42 @@ const loadKrpano = () => {
         set(layer[${popupContentName}].css, color:black; font-size:14px;);
         set(layer[${popupContentName}].editable, true);
         set(layer[${popupContentName}].editenterkey, newline);
-        set(layer[${popupContentName}].y, 20); // Shift content below the title
+        set(layer[${popupContentName}].y, 20);
         set(layer[${popupContentName}].oneditstop, "js(saveHotspotData(get(caller.parent.name.substr(6))))");
       `);
 
       const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
       popupContent.html = text;
 
+      const popupSelect = document.createElement('div');
+      popupSelect.id = popupSelectName;
+      popupSelect.style.position = 'fixed';
+      popupSelect.style.top = '220px'; // Position below the popup box
+      popupSelect.style.right = '10px';
+      popupSelect.style.width = '280px';
+      document.body.appendChild(popupSelect);
+
+      const root = ReactDOM.createRoot(popupSelect);
+      root.render(
+        <Select
+          options={options}
+          isMulti
+          onChange={(selectedOptions) => {
+            const selectedValues = selectedOptions.map(option => option.value);
+            hotspotData[hotspotName].properties = selectedValues;
+            saveHotspotData(hotspotName);
+          }}
+        />
+      );
+
       activePopups[hotspotName] = {
         popup: krpanoInstance.get(`layer[${popupName}]`),
-        content: popupContent
+        content: popupContent,
+        select: popupSelect
       };
     }
   }
+
 
   fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
     .then((res) => res.text())
