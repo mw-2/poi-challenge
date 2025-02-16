@@ -38,7 +38,43 @@ const loadKrpano = (panoramaUrl) => {
   // Clear any existing viewer first
   removeKrpanoViewer();
 
-  fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
+  setTimeout(() => {
+    fetch(panoramaUrl)
+      .then((res) => res.text())
+      .then((xml) => {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xml, 'text/xml');
+        const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo']");
+        if (nadirHotspotElem) {
+          nadirHotspotElem.setAttribute('url', './ids-nadir.png');
+        }
+        const serializer = new XMLSerializer();
+        const xmlStr = serializer.serializeToString(xmlDoc);
+
+        // Check if target element exists before embedding
+        const targetElement = document.getElementById(KRPANO_VIEWER_TARGET_ID);
+        if (!targetElement) {
+          console.error('Target element not found');
+          return;
+        }
+
+        // Embed the new panorama
+        embedpano({
+          xml: xmlStr,
+          html5: "prefer",
+          consolelog: true,
+          capturetouch: false,
+          bgcolor: "#F4F6F8",
+          id: KRPANO_VIEWER_ID,
+          target: KRPANO_VIEWER_TARGET_ID,
+          onready: (krpano) => onKRPanoReady(krpano, xmlStr),
+          onerror: onKRPanoError,
+        });
+      })
+      .catch(onKRPanoError);
+  }, 100); // Small delay to ensure DOM is ready
+
+  fetch(panoramaUrl)
     .then((res) => res.text())
     .then((xml) => {
       const parser = new DOMParser();
@@ -576,11 +612,45 @@ const loadKrpano = (panoramaUrl) => {
   }
 
   function removeKrpanoViewer() {
+    // First remove the existing viewer if any
     const krpanoElement = document.getElementById(KRPANO_VIEWER_ID);
     if (krpanoElement) {
-      krpanoElement.parentNode.removeChild(krpanoElement);
+      try {
+        removepano(KRPANO_VIEWER_ID);
+        if (krpanoElement.parentNode) {
+          krpanoElement.parentNode.removeChild(krpanoElement);
+        }
+      } catch (error) {
+        console.warn('Error removing krpano element:', error);
+      }
     }
+
+    // Remove existing target div if it exists
+    const existingTarget = document.getElementById(KRPANO_VIEWER_TARGET_ID);
+    if (existingTarget) {
+      existingTarget.remove();
+    }
+
+    // Create a new target div
+    const targetDiv = document.createElement('div');
+    targetDiv.id = KRPANO_VIEWER_TARGET_ID;
+
+    // Make sure the app element exists before appending
+    const appElement = document.getElementById('app');
+    if (appElement) {
+      appElement.appendChild(targetDiv);
+    } else {
+      console.error('App element not found');
+      return;
+    }
+
+    // Reset the krpano instance
     krpanoInstance = null;
+
+    // Clear any existing hotspots and popups
+    hotspotData = {};
+    activePopups = {};
+    selectedHotspot = null;
   }
 
   removeKrpanoViewer();
@@ -664,6 +734,7 @@ const loadKrpano = (panoramaUrl) => {
       root.render(
         <Select
           options={options}
+          placeholder="Add tags to PoI..."
           isMulti
           onChange={(selectedOptions) => {
             const selectedValues = selectedOptions.map(option => option.value);

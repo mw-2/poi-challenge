@@ -21,7 +21,7 @@ function App() {
 
   const loadAnotherPanorama = (panoramaId) => {
     // Update the panoramaId to a new URL for a different panorama
-    loadKrpano(`https://api.viewer.immersiondata.com/api/v1/panoramas/${panoramaId}/krpano.xml`); // Load specified panorama
+    loadKrpano(`https://api.viewer.immersiondata.com/api/v1/panoramas/311976/krpano.xml`); // Load specified panorama
   };
 
   return (
