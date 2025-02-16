@@ -4,6 +4,10 @@
   position: fixed;
 }
 
+.inverted {
+  filter: invert(1); /* Invert colors */
+}
+
 @keyframes pulse {
   0% {
     transform: translate(-6px, -6px) scale(1);

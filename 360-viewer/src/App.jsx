@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import loadKrpano from './loadKrpano';
 import './App.css';
 
 function App() {
+  const [isInverted, setIsInverted] = useState(false);
+
   useEffect(() => {
     loadKrpano();
   }, []);
@@ -12,8 +14,12 @@ function App() {
     window.removeAllHotspots();
   };
 
+  const toggleInvert = () => {
+    setIsInverted(prev => !prev);
+  };
+
   return (
-    <div id="app">
+    <div id="app" className={isInverted ? 'inverted' : ''}>
       <button
         style={{
           position: 'absolute',
@@ -46,6 +52,17 @@ function App() {
         onClick={() => window.loadHotspotsFromFile()}
       >
         Load Hotspots
+      </button>
+      <button
+        style={{
+          position: 'absolute',
+          top: '100px', // Adjust top position for spacing
+          left: '10px',
+          zIndex: 1000,
+        }}
+        onClick={toggleInvert}
+      >
+        Invert Background
       </button>
       <div id="krpano-target"></div>
       <div id="map"></div>
