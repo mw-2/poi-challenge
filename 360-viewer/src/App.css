@@ -3,3 +3,15 @@
   height: 100vh;
   position: fixed;
 }
+
+@keyframes pulse {
+  0% {
+    transform: translate(-6px, -6px) scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-6px, -6px) scale(1.2);
+    opacity: 0.5;
+  }
+}
