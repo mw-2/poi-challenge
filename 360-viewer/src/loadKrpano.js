@@ -16,6 +16,18 @@ let userPosition = { ath: 180, atv: 90 };
 let userPositionLoading = false;
 let panoramaHistory = [];
 
+// Move goBackToPreviousPanorama outside of loadKrpano
+const goBackToPreviousPanorama = () => {
+  if (panoramaHistory.length > 1) {
+    panoramaHistory.pop();
+    const previousPanorama = panoramaHistory.pop();
+    loadKrpano(previousPanorama);
+  } else {
+    console.warn('No previous panorama to go back to.');
+  }
+};
+
+
 const loadKrpano = (panoramaUrl) => {
   if (panoramaHistory.length === 0 || panoramaHistory[panoramaHistory.length - 1] !== panoramaUrl) {
     panoramaHistory.push(panoramaUrl);
@@ -661,57 +673,57 @@ const loadKrpano = (panoramaUrl) => {
   }
 
 
-<<<<<<< HEAD
-=======
   fetch(panoramaUrl)
     .then((res) => res.text())
     .then((xml) => {
       xmlStr = xml;
->>>>>>> 20f4a7d08edd9764d6bdbd0034ad69a6952998d6
+    })
+    .catch(error => {
+      console.error("Error fetching panorama XML:", error);
+    });
 
-};
+  window.showHotspotPopup = function (hotspotName) {
+    if (!krpanoInstance) return;
 
-window.showHotspotPopup = function (hotspotName) {
-  if (!krpanoInstance) return;
+    try {
+      if (!activePopups[hotspotName]) {
+        window.selectHotspot(hotspotName);
+      }
 
-  try {
-    if (!activePopups[hotspotName]) {
-      window.selectHotspot(hotspotName);
+      if (activePopups[hotspotName]) {
+        activePopups[hotspotName].popup.visible = true;
+
+        // Get current mouse position
+        const mouseX = window.event.clientX;
+        const mouseY = window.event.clientY;
+
+        // Position the popup near the mouse cursor
+        const popupX = mouseX + 10; // Offset slightly to the right
+        const popupY = mouseY + 10; // Offset slightly below
+
+        krpanoInstance.call(`set(layer[popup_${hotspotName}].x, ${popupX});`);
+        krpanoInstance.call(`set(layer[popup_${hotspotName}].y, ${popupY});`);
+      }
+    } catch (error) {
+      console.error("Error showing hotspot popup:", error);
     }
+  };
 
+  window.hideHotspotPopup = function (hotspotName) {
     if (activePopups[hotspotName]) {
-      activePopups[hotspotName].popup.visible = true;
-
-      // Get current mouse position
-      const mouseX = window.event.clientX;
-      const mouseY = window.event.clientY;
-
-      // Position the popup near the mouse cursor
-      const popupX = mouseX + 10; // Offset slightly to the right
-      const popupY = mouseY + 10; // Offset slightly below
-
-      krpanoInstance.call(`set(layer[popup_${hotspotName}].x, ${popupX});`);
-      krpanoInstance.call(`set(layer[popup_${hotspotName}].y, ${popupY});`);
+      activePopups[hotspotName].popup.visible = false;
     }
-  } catch (error) {
-    console.error("Error showing hotspot popup:", error);
-  }
-};
+  };
 
-window.hideHotspotPopup = function (hotspotName) {
-  if (activePopups[hotspotName]) {
-    activePopups[hotspotName].popup.visible = false;
-  }
-};
-
-const goBackToPreviousPanorama = () => {
-  if (panoramaHistory.length > 1) {
-    panoramaHistory.pop();
-    const previousPanorama = panoramaHistory.pop();
-    loadKrpano(previousPanorama);
-  } else {
-    console.warn('No previous panorama to go back to.');
-  }
-};
+  const goBackToPreviousPanorama = () => {
+    if (panoramaHistory.length > 1) {
+      panoramaHistory.pop();
+      const previousPanorama = panoramaHistory.pop();
+      loadKrpano(previousPanorama);
+    } else {
+      console.warn('No previous panorama to go back to.');
+    }
+  };
+}
 
 export { loadKrpano, goBackToPreviousPanorama };
