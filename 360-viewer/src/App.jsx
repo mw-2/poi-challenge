@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Select from 'react-select'; // Add this import
 import loadKrpano from './loadKrpano';
 import './App.css';
 
@@ -42,6 +43,31 @@ function App() {
       >
         Save Hotspots
       </button>
+
+      <div
+        style={{
+          position: 'absolute',
+          top: '200px',
+          left: '10px',
+          width: '280px',
+          zIndex: 1000,
+        }}
+      >
+        <div style={{ marginBottom: '5px', color: '#333', fontWeight: 'bold' }}>
+          Filter PoI by Tag
+        </div>
+        <Select
+          options={[
+            { value: 'Maintenance', label: 'Maintenance' },
+            { value: 'Safety', label: 'Safety' },
+            { value: 'Information', label: 'Information' }
+          ]}
+          isMulti
+          placeholder="Select tags..."
+          onChange={window.filterHotspotsByProperties}
+        />
+      </div>
+
       <button
         style={{
           position: 'absolute',

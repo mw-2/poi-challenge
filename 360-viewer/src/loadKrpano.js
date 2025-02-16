@@ -18,6 +18,37 @@ let userPositionLoading = false;
 const loadKrpano = () => {
   let xmlStr;
 
+  // Clear any existing viewer first
+  removeKrpanoViewer();
+
+  fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
+    .then((res) => res.text())
+    .then((xml) => {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xml, 'text/xml');
+      const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo']");
+      if (nadirHotspotElem) {
+        nadirHotspotElem.setAttribute('url', './ids-nadir.png');
+      }
+      const serializer = new XMLSerializer();
+      const xmlStr = serializer.serializeToString(xmlDoc);
+
+      // eslint-disable-next-line no-undef
+      embedpano({
+        xml: xmlStr,  // Pass the XML string directly here
+        html5: "prefer",
+        consolelog: true,
+        capturetouch: false,
+        bgcolor: "#F4F6F8",
+        id: KRPANO_VIEWER_ID,
+        target: KRPANO_VIEWER_TARGET_ID,
+        onready: (krpano) => onKRPanoReady(krpano, xmlStr),
+        onerror: onKRPanoError,
+      });
+    })
+    .catch(onKRPanoError);
+
+
   const saveHotspotsToFile = () => {
     fetch('http://localhost:3001/api/hotspots', {
       method: 'POST',
@@ -69,6 +100,30 @@ const loadKrpano = () => {
 
   window.saveHotspotsToFile = saveHotspotsToFile;
   window.loadHotspotsFromFile = loadHotspotsFromFile;
+
+  window.filterHotspotsByProperties = function (selectedOptions) {
+    if (!krpanoInstance) return;
+
+    const selectedProperties = selectedOptions?.map(option => option.value) || [];
+
+    Object.keys(hotspotData).forEach(hotspotName => {
+      const hotspot = hotspotData[hotspotName];
+      const hotspotProperties = hotspot.properties || [];
+
+      const shouldShow = selectedProperties.length === 0 ? false :
+        hotspotProperties.some(prop => selectedProperties.includes(prop));
+
+      // Skip the YouTube icon hotspot
+      if (hotspotName === 'youtube_icon') return;
+
+      callKrpano(`set(hotspot[${hotspotName}].visible, ${shouldShow})`);
+
+      // Hide associated popup if it exists
+      if (activePopups[hotspotName]) {
+        activePopups[hotspotName].popup.visible = false;
+      }
+    });
+  };
 
   const callKrpano = (command) => {
     if (krpanoInstance && typeof krpanoInstance.call === 'function') {
@@ -253,13 +308,17 @@ const loadKrpano = () => {
     }
   }
 
-  function onKRPanoReady(krpano) {
+  function onKRPanoReady(krpano, xmlStr) {
     krpanoInstance = krpano;
     try {
+      // Load the XML first
       krpano.call(`loadxml(${xmlStr})`);
-      updateMap();
 
-      loadHotspotsFromFile();
+      // Then attach events
+      attachHotspotEvents();
+
+      // Update map
+      updateMap();
 
       krpano.call(`
         addlayer(popup);
@@ -516,6 +575,7 @@ const loadKrpano = () => {
     callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
     callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
     callKrpano(`set(hotspot[${hotspotName}].onhover, js(showHotspotPopup('${hotspotName}'))")`);
+    callKrpano(`set(hotspot[${hotspotName}].visible, true)`); // Change this to true
 
     if (!activePopups[hotspotName]) {
       const popupName = `popup_${hotspotName}`;
@@ -596,32 +656,7 @@ const loadKrpano = () => {
   }
 
 
-  fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
-    .then((res) => res.text())
-    .then((xml) => {
-      xmlStr = xml;
 
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xml, 'text/xml');
-      const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo']");
-      nadirHotspotElem.setAttribute('url', './ids-nadir.png');
-      const serializer = new XMLSerializer();
-      xmlStr = serializer.serializeToString(xmlDoc);
-
-      // eslint-disable-next-line no-undef
-      embedpano({
-        xml: null,
-        html5: "prefer",
-        consolelog: true,
-        capturetouch: false,
-        bgcolor: "#F4F6F8",
-        id: KRPANO_VIEWER_ID,
-        target: KRPANO_VIEWER_TARGET_ID,
-        onready: onKRPanoReady,
-        onerror: onKRPanoError,
-      });
-    })
-    .catch(onKRPanoError);
 };
 
 window.showHotspotPopup = function (hotspotName) {
