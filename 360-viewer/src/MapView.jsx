@@ -10,7 +10,7 @@ const MapView = ({ hotspots, userPosition }) => {
   };
 
   return (
-    <div id="map" style={{ width: `${mapSize}px`, height: `${mapSize}px`, position: 'absolute', top: '10px', right: '10px', backgroundColor: 'lightgray' }}>
+    <div id="map" style={{ width: `${mapSize}px`, height: `${mapSize}px`, position: 'absolute', bottom: '10px', right: '10px', backgroundColor: 'lightgray' }}>
       <h3>Hotspot Map</h3>
       {hotspots.map(hotspot => {
         // Simple normalization to keep points within map bounds
@@ -18,9 +18,9 @@ const MapView = ({ hotspots, userPosition }) => {
         const y = normalizeCoordinate(hotspot.atv + 90, 180);  // Add 90 to shift range from [-90,90] to [0,180]
 
         return (
-          <div key={hotspot.name} style={{ 
-            position: 'absolute', 
-            left: `${x}px`, 
+          <div key={hotspot.name} style={{
+            position: 'absolute',
+            left: `${x}px`,
             top: `${y}px`,
             transform: 'translate(-4px, -4px)' // Center the dot
           }}>

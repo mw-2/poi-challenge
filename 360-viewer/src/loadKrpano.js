@@ -1,28 +1,24 @@
-import React from 'react'; // Ensure React is imported
-import ReactDOM from 'react-dom/client'; // Import ReactDOM from 'react-dom/client'
-import MapView from './MapView'; // Import the new MapView component
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import MapView from './MapView';
 
 const KRPANO_VIEWER_TARGET_ID = "krpano-target";
 const KRPANO_VIEWER_ID = "krpano-viewer";
 
-let krpanoInstance = null; // Declare krpanoInstance outside the function
-let hotspotData = {}; // Declare hotspotData outside the function
-let selectedHotspot = null; // Declare selectedHotspot outside the function
-let activePopups = {}; // Declare activePopups outside the function
-let userPosition = { ath: 180, atv: 90 }; // Hardcoded user position (center of the sphere)
-let userPositionLoading = false; // Add a loading state
-
+let krpanoInstance = null;
+let hotspotData = {};
+let selectedHotspot = null;
+let activePopups = {};
+let userPosition = { ath: 180, atv: 90 };
+let userPositionLoading = false;
 
 const loadKrpano = () => {
   let xmlStr;
 
-  // Function to save hotspots to a file
   const saveHotspotsToFile = () => {
     const dataStr = JSON.stringify(hotspotData);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-
     const exportFileDefaultName = 'hotspots.json';
-
     let linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -31,10 +27,8 @@ const loadKrpano = () => {
     document.body.removeChild(linkElement);
   };
 
-  // Function to load hotspots from a file
   const loadHotspotsFromFile = () => {
     try {
-      // Create an input element to select the file
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
@@ -47,19 +41,11 @@ const loadKrpano = () => {
             try {
               const fileContent = JSON.parse(e.target.result);
               hotspotData = fileContent;
-              // After loading, re-add hotspots to krpano
               Object.keys(hotspotData).forEach(hotspotName => {
                 const hotspot = hotspotData[hotspotName];
-                callKrpano(`addhotspot(${hotspotName})`);
-                callKrpano(`set(hotspot[${hotspotName}].type, text)`);
-                callKrpano(`set(hotspot[${hotspotName}].text, "${hotspot.text}")`);
-                callKrpano(`set(hotspot[${hotspotName}].ath, ${hotspot.ath})`);
-                callKrpano(`set(hotspot[${hotspotName}].atv, ${hotspot.atv})`);
-                callKrpano(`set(hotspot[${hotspotName}].editable, true)`); // Make it editable
-                callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))");`);
-                callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+                addHotspotWithPopup(hotspotName, hotspot.text, hotspot.ath, hotspot.atv);
               });
-              updateMap(); // Update the map after loading hotspots
+              updateMap();
             } catch (error) {
               console.error('Error parsing JSON file:', error);
             }
@@ -67,19 +53,15 @@ const loadKrpano = () => {
           reader.readAsText(file);
         }
       };
-      input.click(); // Programmatically trigger the file selection
+      input.click();
     } catch (error) {
       console.error('Error loading hotspots from file:', error);
     }
   };
 
-  // Make the saveHotspotsToFile function globally accessible
   window.saveHotspotsToFile = saveHotspotsToFile;
-
-  // Make the loadHotspotsFromFile function globally accessible
   window.loadHotspotsFromFile = loadHotspotsFromFile;
 
-  // Function to safely call krpano functions
   const callKrpano = (command) => {
     if (krpanoInstance && typeof krpanoInstance.call === 'function') {
       try {
@@ -105,30 +87,26 @@ const loadKrpano = () => {
         return;
       }
 
-      // Un-highlight any previously selected hotspot and hide its popup
       if (selectedHotspot) {
         const prevHotspotName = selectedHotspot.name;
-        selectedHotspot.bordercolor = null;
-        selectedHotspot.borderwidth = null;
-        selectedHotspot.editable = false;
-
-        // Hide previous popup if it exists
+        const prevPopupName = `popup_${prevHotspotName}`;
         if (activePopups[prevHotspotName]) {
           activePopups[prevHotspotName].popup.visible = false;
         }
+        selectedHotspot.bordercolor = null;
+        selectedHotspot.borderwidth = null;
+        selectedHotspot.editable = false;
       }
 
-      // Select & highlight new hotspot
       selectedHotspot = hotspot;
       hotspot.bordercolor = "0xFF0000";
       hotspot.borderwidth = 2;
       hotspot.editable = true;
 
-      // Check if popup already exists for this hotspot
       if (!activePopups[hotspotName]) {
-        // Create a new popup for this hotspot
         const popupName = `popup_${hotspotName}`;
         const popupContentName = `popupcontent_${hotspotName}`;
+        const popupTitleName = `popuptitle_${hotspotName}`; // New title layer
 
         krpanoInstance.call(`
           addlayer(${popupName});
@@ -143,7 +121,19 @@ const loadKrpano = () => {
           set(layer[${popupName}].bgborder, 1 0x777777 0.5);
           set(layer[${popupName}].bgroundedge, 7);
           set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
-          
+          set(layer[${popupName}].visible, true);
+
+          addlayer(${popupTitleName});
+          set(layer[${popupTitleName}].parent, ${popupName});
+          set(layer[${popupTitleName}].type, text);
+          set(layer[${popupTitleName}].align, lefttop);
+          set(layer[${popupTitleName}].html, '<b>POI Comment Section</b>');
+          set(layer[${popupTitleName}].width, 100%);
+          set(layer[${popupTitleName}].height, 20); // Adjust height as needed
+          set(layer[${popupTitleName}].css, color:black; font-size:12px; font-weight: bold; text-align: center;);
+          set(layer[${popupTitleName}].bgalpha, 0.0);
+          set(layer[${popupTitleName}].y, 0);
+
           addlayer(${popupContentName});
           set(layer[${popupContentName}].parent, ${popupName});
           set(layer[${popupContentName}].type, text);
@@ -154,9 +144,12 @@ const loadKrpano = () => {
           set(layer[${popupContentName}].css, color:black; font-size:14px;);
           set(layer[${popupContentName}].editable, true);
           set(layer[${popupContentName}].editenterkey, newline);
+          set(layer[${popupContentName}].y, 20); // Shift content below the title
+          set(layer[${popupContentName}].oneditstop, "js(saveHotspotData(get(caller.parent.name.substr(6))))");
         `);
 
         const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
+
         popupContent.html = hotspotData[hotspotName]?.text || hotspot.text;
 
         activePopups[hotspotName] = {
@@ -165,9 +158,11 @@ const loadKrpano = () => {
         };
       }
 
-      // Hide all other popups and show only the current one
+      // Show the popup for the selected hotspot and hide the others
       Object.keys(activePopups).forEach(name => {
-        activePopups[name].popup.visible = name === hotspotName;
+        if (activePopups[name].content !== document.activeElement) {
+          activePopups[name].popup.visible = (name === hotspotName);
+        }
       });
 
     } catch (error) {
@@ -193,7 +188,6 @@ const loadKrpano = () => {
       hotspot.editable = false;
       selectedHotspot = null;
 
-      // Hide the popup
       if (activePopups[hotspotName]) {
         activePopups[hotspotName].popup.visible = false;
       }
@@ -205,19 +199,20 @@ const loadKrpano = () => {
   function attachHotspotEvents() {
     if (!krpanoInstance) {
       console.warn('krpanoInstance not ready to attach hotspot events. Retrying...');
-      setTimeout(attachHotspotEvents, 500); // Retry after 500ms
+      setTimeout(attachHotspotEvents, 500);
       return;
     }
 
     try {
-      // Attach onclick event to existing hotspots
-      const hotspots = krpanoInstance.get("hotspot"); // Get all hotspots
+      const hotspots = krpanoInstance.get("hotspot");
       if (hotspots && hotspots.length > 0) {
         for (let i = 0; i < hotspots.length; i++) {
           const hotspot = hotspots[i];
-          const hotspotName = hotspot.name; // Store the hotspot name
+          const hotspotName = hotspot.name;
           callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
           callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+          callKrpano(`set(hotspot[${hotspotName}].onhover, js(showHotspotPopup('${hotspotName}'))")`);
+          // callKrpano(`set(hotspot[${hotspotName}].onout, js(hideHotspotPopup('${hotspotName}'))")`);
         }
       } else {
         console.warn('No hotspots found to attach events to.');
@@ -227,17 +222,14 @@ const loadKrpano = () => {
     }
   }
 
-
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
-      updateMap(); // Update the map with hotspots
+      updateMap();
 
-      // Load hotspots from file on Krpano ready
       loadHotspotsFromFile();
 
-      // Create the popup layer
       krpano.call(`
         addlayer(popup);
         set(layer[popup].type, container);
@@ -251,8 +243,8 @@ const loadKrpano = () => {
         set(layer[popup].bgborder, 1 0x777777 0.5);
         set(layer[popup].bgroundedge, 7);
         set(layer[popup].bgshadow, 0 4 20 0x000000 0.25);
-        set(layer[popup].visible, false); // Initially hidden
-
+        set(layer[popup].visible, false);
+      
         addlayer(popupcontent);
         set(layer[popupcontent].parent, popup);
         set(layer[popupcontent].type, text);
@@ -263,19 +255,16 @@ const loadKrpano = () => {
         set(layer[popupcontent].css, color:black; font-size:14px;);
         set(layer[popupcontent].editable, true);
         set(layer[popupcontent].editenterkey, newline);
-        set(layer[popupcontent].oneditstop, "save_hotspot_data(currentHotspotName)");
+        set(layer[popupcontent].oneditstop, "js(saveHotspotData(get(caller.parent.name.substr(6))))");
       `);
 
-      // Attach hotspot events after krpano is ready and XML is loaded
       attachHotspotEvents();
 
-      // Listen for double-click to create a new hotspot
       const viewerTarget = document.getElementById(KRPANO_VIEWER_TARGET_ID);
       if (viewerTarget) {
         viewerTarget.addEventListener("dblclick", onViewerDoubleClick);
       }
 
-      // Helper for deleting the selected hotspot
       function removeSelectedHotspot() {
         if (!selectedHotspot) {
           console.warn('No hotspot selected to remove.');
@@ -284,66 +273,43 @@ const loadKrpano = () => {
 
         try {
           const hotspotName = selectedHotspot.name;
-
-          // Remove the hotspot
           callKrpano(`removehotspot(${hotspotName})`);
 
-          // Remove popup layers if they exist
           if (activePopups[hotspotName]) {
             const popupName = `popup_${hotspotName}`;
             const popupContentName = `popupcontent_${hotspotName}`;
-
             callKrpano(`removelayer(${popupContentName})`);
             callKrpano(`removelayer(${popupName})`);
-
-            // Remove from activePopups
             delete activePopups[hotspotName];
           }
 
-          // Remove from hotspotData and update localStorage
           delete hotspotData[hotspotName];
           localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
-
-          // Clear selected hotspot
           selectedHotspot = null;
         } catch (error) {
           console.error("Error removing hotspot:", error);
         }
       }
 
-      // Helper for deleting all hotspots
       function removeAllHotspots() {
         try {
-          // Get all hotspot names
           const hotspotNames = Object.keys(hotspotData);
-
-          // Remove each hotspot
           hotspotNames.forEach(hotspotName => {
             callKrpano(`removehotspot(${hotspotName})`);
 
-            // Remove popup layers if they exist
             if (activePopups[hotspotName]) {
               const popupName = `popup_${hotspotName}`;
               const popupContentName = `popupcontent_${hotspotName}`;
-
               callKrpano(`removelayer(${popupContentName})`);
               callKrpano(`removelayer(${popupName})`);
-
-              // Remove from activePopups
               delete activePopups[hotspotName];
             }
 
-            // Remove from hotspotData
             delete hotspotData[hotspotName];
           });
 
-          // Clear local storage
           localStorage.removeItem('hotspotData');
-
-          // Clear selected hotspot
           selectedHotspot = null;
-
-          // Update the map
           updateMap();
 
         } catch (error) {
@@ -351,34 +317,23 @@ const loadKrpano = () => {
         }
       }
 
-      // Make removeAllHotspots globally accessible
       window.removeAllHotspots = removeAllHotspots;
 
-      // Add 'Delete' key listener for removing selected hotspot
       document.addEventListener("keydown", (event) => {
         if (event.key === "Delete") {
           removeSelectedHotspot();
         }
       });
 
-      // Load hotspot data from local storage
       const storedHotspotData = localStorage.getItem('hotspotData');
       if (storedHotspotData) {
         hotspotData = JSON.parse(storedHotspotData);
         Object.keys(hotspotData).forEach(hotspotName => {
           const hotspot = hotspotData[hotspotName];
-          callKrpano(`addhotspot(${hotspotName})`);
-          callKrpano(`set(hotspot[${hotspotName}].type, text)`);
-          callKrpano(`set(hotspot[${hotspotName}].text, "${hotspot.text}")`);
-          callKrpano(`set(hotspot[${hotspotName}].ath, ${hotspot.ath})`);
-          callKrpano(`set(hotspot[${hotspotName}].atv, ${hotspot.atv})`);
-          callKrpano(`set(hotspot[${hotspotName}].editable, true)`); // Make it editable
-          callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-          callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+          addHotspotWithPopup(hotspotName, hotspot.text, hotspot.ath, hotspot.atv);
         });
       }
 
-      // Initialize YouTube icon hotspot
       callKrpano(`
         addhotspot(youtube_icon);
         set(hotspot[youtube_icon].url, "%SWFPATH%/youtube_icon.png");
@@ -406,28 +361,19 @@ const loadKrpano = () => {
     const x = event.clientX;
     const y = event.clientY;
 
-    // Create a unique hotspot and set its onclick/oneditstop via krpano calls
     const hotspotName = `hotspot_${Date.now()}`;
-    callKrpano(`addhotspot(${hotspotName})`);
-    callKrpano(`set(hotspot[${hotspotName}].type, text)`);
-    callKrpano(`set(hotspot[${hotspotName}].text, "New Hotspot")`);
-    callKrpano(`set(hotspot[${hotspotName}].ath, ${krpanoInstance.screentosphere(x, y).x})`);
-    callKrpano(`set(hotspot[${hotspotName}].atv, ${krpanoInstance.screentosphere(x, y).y})`);
-    callKrpano(`set(hotspot[${hotspotName}].editable, true)`);
+    const ath = krpanoInstance.screentosphere(x, y).x;
+    const atv = krpanoInstance.screentosphere(x, y).y;
+    const text = "New Hotspot";
 
-    // Assign JS callbacks for selecting/unselecting
-    callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
-    callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+    addHotspotWithPopup(hotspotName, text, ath, atv);
 
-    // Save the new hotspot data
     hotspotData[hotspotName] = {
-      text: "New Hotspot",
-      ath: krpanoInstance.screentosphere(x, y).x,
-      atv: krpanoInstance.screentosphere(x, y).y
+      text: text,
+      ath: ath,
+      atv: atv
     };
     saveHotspotData(hotspotName);
-
-    // Add this line to update the map when a new hotspot is created
     updateMap();
   }
 
@@ -436,12 +382,9 @@ const loadKrpano = () => {
     if (mapContainer) {
       const mapWidth = mapContainer.clientWidth;
       const mapHeight = mapContainer.clientHeight;
-
-      // Convert hotspot positions
       const hotspots = Object.values(hotspotData);
-
-      const root = ReactDOM.createRoot(mapContainer); // Create a root for the map container
-      root.render(<MapView hotspots={hotspots} userPosition={userPosition} isLoading={userPositionLoading} />); // Render the MapView component
+      const root = ReactDOM.createRoot(mapContainer);
+      root.render(<MapView hotspots={hotspots} userPosition={userPosition} isLoading={userPositionLoading} />);
     }
   }
 
@@ -450,14 +393,20 @@ const loadKrpano = () => {
     const popupContent = activePopups[hotspotName]?.content;
 
     if (hotspot && popupContent) {
+      const newText = popupContent.html;
+
+      // Update hotspot text in krpano
+      callKrpano(`set(hotspot[${hotspotName}].text, ${newText})`);
+
+      // Update hotspot data
       hotspotData[hotspotName] = {
-        text: popupContent.html,
+        text: newText,
         ath: hotspot.ath,
         atv: hotspot.atv
       };
+
       localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
 
-      // Save to server
       fetch('/api/data', {
         method: 'POST',
         headers: {
@@ -468,7 +417,6 @@ const loadKrpano = () => {
         .then(response => response.json())
         .then(data => {
           console.log('Hotspot data saved:', data);
-          // Add this line to update the map when hotspot data is saved
           updateMap();
         })
         .catch(error => {
@@ -485,7 +433,6 @@ const loadKrpano = () => {
     target.remove();
   }
 
-  // Function to remove the krpano viewer
   function removeKrpanoViewer() {
     const krpanoElement = document.getElementById(KRPANO_VIEWER_ID);
     if (krpanoElement) {
@@ -494,9 +441,75 @@ const loadKrpano = () => {
     krpanoInstance = null;
   }
 
-  // Remove the krpano viewer before embedding a new instance
   removeKrpanoViewer();
-  updateMap(); // Call updateMap here to render the map immediately with the hardcoded position
+  updateMap();
+
+  function addHotspotWithPopup(hotspotName, text, ath, atv) {
+    callKrpano(`addhotspot(${hotspotName})`);
+    callKrpano(`set(hotspot[${hotspotName}].type, text)`);
+    callKrpano(`set(hotspot[${hotspotName}].text, "${text}")`);
+    callKrpano(`set(hotspot[${hotspotName}].ath, ${ath})`);
+    callKrpano(`set(hotspot[${hotspotName}].atv, ${atv})`);
+    callKrpano(`set(hotspot[${hotspotName}].editable, true)`);
+    callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
+    callKrpano(`set(hotspot[${hotspotName}].oneditstop, "save_hotspot_data('${hotspotName}')")`);
+    callKrpano(`set(hotspot[${hotspotName}].onhover, js(showHotspotPopup('${hotspotName}'))")`);
+    //callKrpano(`set(hotspot[${hotspotName}].onout, js(hideHotspotPopup('${hotspotName}'))")`);
+
+    if (!activePopups[hotspotName]) {
+      const popupName = `popup_${hotspotName}`;
+      const popupContentName = `popupcontent_${hotspotName}`;
+      const popupTitleName = `popuptitle_${hotspotName}`; // New title layer
+
+      krpanoInstance.call(`
+        addlayer(${popupName});
+        set(layer[${popupName}].type, container);
+        set(layer[${popupName}].align, righttop);
+        set(layer[${popupName}].x, -10);
+        set(layer[${popupName}].y, 10);
+        set(layer[${popupName}].width, 300);
+        set(layer[${popupName}].height, 100);
+        set(layer[${popupName}].bgcolor, 0xFFFFFF);
+        set(layer[${popupName}].bgalpha, 1);
+        set(layer[${popupName}].bgborder, 1 0x777777 0.5);
+        set(layer[${popupName}].bgroundedge, 7);
+        set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
+        set(layer[${popupName}].visible, true);
+
+        addlayer(${popupTitleName});
+        set(layer[${popupTitleName}].parent, ${popupName});
+        set(layer[${popupTitleName}].type, text);
+        set(layer[${popupTitleName}].align, lefttop);
+        set(layer[${popupTitleName}].html, '<b>POI Comment Section</b>');
+        set(layer[${popupTitleName}].width, 100%);
+        set(layer[${popupTitleName}].height, 20); // Adjust height as needed
+        set(layer[${popupTitleName}].css, color:black; font-size:12px; font-weight: bold; text-align: center;);
+        set(layer[${popupTitleName}].bgalpha, 0.0);
+        set(layer[${popupTitleName}].y, 0);
+
+        addlayer(${popupContentName});
+        set(layer[${popupContentName}].parent, ${popupName});
+        set(layer[${popupContentName}].type, text);
+        set(layer[${popupContentName}].align, lefttop);
+        set(layer[${popupContentName}].htmlautosize, true);
+        set(layer[${popupContentName}].width, 100%);
+        set(layer[${popupContentName}].bgalpha, 0.0);
+        set(layer[${popupContentName}].css, color:black; font-size:14px;);
+        set(layer[${popupContentName}].editable, true);
+        set(layer[${popupContentName}].editenterkey, newline);
+        set(layer[${popupContentName}].y, 20); // Shift content below the title
+        set(layer[${popupContentName}].oneditstop, "js(saveHotspotData(get(caller.parent.name.substr(6))))");
+      `);
+
+      const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
+      popupContent.html = text;
+
+      activePopups[hotspotName] = {
+        popup: krpanoInstance.get(`layer[${popupName}]`),
+        content: popupContent
+      };
+    }
+  }
 
   fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
     .then((res) => res.text())
@@ -505,11 +518,8 @@ const loadKrpano = () => {
 
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xml, 'text/xml');
-
-      // Replace remote nadir url with local asset due to CORS errors
       const nadirHotspotElem = xmlDoc.querySelector("hotspot[name='nadirlogo']");
       nadirHotspotElem.setAttribute('url', './ids-nadir.png');
-
       const serializer = new XMLSerializer();
       xmlStr = serializer.serializeToString(xmlDoc);
 
@@ -518,7 +528,7 @@ const loadKrpano = () => {
         xml: null,
         html5: "prefer",
         consolelog: true,
-        capturetouch: false, // prevent default touch event handling from being disabled
+        capturetouch: false,
         bgcolor: "#F4F6F8",
         id: KRPANO_VIEWER_ID,
         target: KRPANO_VIEWER_TARGET_ID,
@@ -527,6 +537,39 @@ const loadKrpano = () => {
       });
     })
     .catch(onKRPanoError);
+};
+
+window.showHotspotPopup = function (hotspotName) {
+  if (!krpanoInstance) return;
+
+  try {
+    if (!activePopups[hotspotName]) {
+      window.selectHotspot(hotspotName);
+    }
+
+    if (activePopups[hotspotName]) {
+      activePopups[hotspotName].popup.visible = true;
+
+      // Get current mouse position
+      const mouseX = window.event.clientX;
+      const mouseY = window.event.clientY;
+
+      // Position the popup near the mouse cursor
+      const popupX = mouseX + 10; // Offset slightly to the right
+      const popupY = mouseY + 10; // Offset slightly below
+
+      krpanoInstance.call(`set(layer[popup_${hotspotName}].x, ${popupX});`);
+      krpanoInstance.call(`set(layer[popup_${hotspotName}].y, ${popupY});`);
+    }
+  } catch (error) {
+    console.error("Error showing hotspot popup:", error);
+  }
+};
+
+window.hideHotspotPopup = function (hotspotName) {
+  if (activePopups[hotspotName]) {
+    activePopups[hotspotName].popup.visible = false;
+  }
 };
 
 export default loadKrpano;
