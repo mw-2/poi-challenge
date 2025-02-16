@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import MapView from './MapView';
 
+/* global removepano, embedpano */
+
 const KRPANO_VIEWER_TARGET_ID = "krpano-target";
 const KRPANO_VIEWER_ID = "krpano-viewer";
 
@@ -16,15 +18,20 @@ const loadKrpano = () => {
   let xmlStr;
 
   const saveHotspotsToFile = () => {
-    const dataStr = JSON.stringify(hotspotData);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'hotspots.json';
-    let linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    document.body.appendChild(linkElement);
-    linkElement.click();
-    document.body.removeChild(linkElement);
+    fetch('http://localhost:3001/api/hotspots', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(hotspotData)
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Hotspot data saved to backend:', data);
+    })
+    .catch(error => {
+      console.error('Error saving hotspot data to backend:', error);
+    });
   };
 
   const loadHotspotsFromFile = () => {
@@ -149,7 +156,6 @@ const loadKrpano = () => {
         `);
 
         const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
-
         popupContent.html = hotspotData[hotspotName]?.text || hotspot.text;
 
         activePopups[hotspotName] = {
@@ -265,31 +271,53 @@ const loadKrpano = () => {
         viewerTarget.addEventListener("dblclick", onViewerDoubleClick);
       }
 
+      const deleteHotspot = (hotspotName) => {
+        fetch(`http://localhost:3001/api/hotspots/${hotspotName}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Hotspot deleted:', data);
+          delete hotspotData[hotspotName];
+          localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
+          updateMap();
+        })
+        .catch(error => {
+          console.error('Error deleting hotspot:', error);
+        });
+      };
+
       function removeSelectedHotspot() {
         if (!selectedHotspot) {
           console.warn('No hotspot selected to remove.');
           return;
         }
-
+      
         try {
           const hotspotName = selectedHotspot.name;
           callKrpano(`removehotspot(${hotspotName})`);
-
+      
           if (activePopups[hotspotName]) {
             const popupName = `popup_${hotspotName}`;
             const popupContentName = `popupcontent_${hotspotName}`;
+      
             callKrpano(`removelayer(${popupContentName})`);
             callKrpano(`removelayer(${popupName})`);
+      
             delete activePopups[hotspotName];
           }
-
-          delete hotspotData[hotspotName];
-          localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
+      
+          deleteHotspot(hotspotName); // Call the delete function
+      
           selectedHotspot = null;
         } catch (error) {
           console.error("Error removing hotspot:", error);
         }
       }
+      
 
       function removeAllHotspots() {
         try {
@@ -407,12 +435,12 @@ const loadKrpano = () => {
 
       localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
 
-      fetch('/api/data', {
+      fetch('http://localhost:3001/api/hotspots', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ hotspots: hotspotData })
+        body: JSON.stringify(hotspotData)
       })
         .then(response => response.json())
         .then(data => {
@@ -427,7 +455,6 @@ const loadKrpano = () => {
 
   function onKRPanoError(err) {
     console.error("Error embedding krpano", err);
-    // eslint-disable-next-line no-undef
     removepano(KRPANO_VIEWER_ID);
     const target = document.getElementById(KRPANO_VIEWER_TARGET_ID);
     target.remove();
