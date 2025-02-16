@@ -4,6 +4,7 @@ const KRPANO_VIEWER_ID = "krpano-viewer";
 let krpanoInstance = null; // Declare krpanoInstance outside the function
 let hotspotData = {}; // Declare hotspotData outside the function
 let selectedHotspot = null; // Declare selectedHotspot outside the function
+let activePopups = {}; // Declare activePopups outside the function
 
 const loadKrpano = () => {
   let xmlStr;
@@ -26,32 +27,79 @@ const loadKrpano = () => {
       console.warn('krpanoInstance not ready.');
       return;
     }
-
+  
     try {
       const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
       if (!hotspot) {
         console.warn(`Hotspot "${hotspotName}" not found.`);
         return;
       }
-
-      // Un-highlight any previously selected hotspot
+  
+      // Un-highlight any previously selected hotspot and hide its popup
       if (selectedHotspot) {
+        const prevHotspotName = selectedHotspot.name;
         selectedHotspot.bordercolor = null;
         selectedHotspot.borderwidth = null;
         selectedHotspot.editable = false;
+  
+        // Hide previous popup if it exists
+        if (activePopups[prevHotspotName]) {
+          activePopups[prevHotspotName].popup.visible = false;
+        }
       }
-
-      // Select & highlight it
+  
+      // Select & highlight new hotspot
       selectedHotspot = hotspot;
       hotspot.bordercolor = "0xFF0000";
       hotspot.borderwidth = 2;
-      hotspot.editable = true; // Make it editable immediately after selection
-
-      // Show the popup with the hotspot text
-      const popup = krpanoInstance.get("layer[popup]");
-      const popupcontent = krpanoInstance.get("layer[popupcontent]");
-      popup.visible = true;
-      popupcontent.html = hotspotData[hotspotName]?.text || hotspot.text;
+      hotspot.editable = true;
+  
+      // Check if popup already exists for this hotspot
+      if (!activePopups[hotspotName]) {
+        // Create a new popup for this hotspot
+        const popupName = `popup_${hotspotName}`;
+        const popupContentName = `popupcontent_${hotspotName}`;
+        
+        krpanoInstance.call(`
+          addlayer(${popupName});
+          set(layer[${popupName}].type, container);
+          set(layer[${popupName}].align, righttop);
+          set(layer[${popupName}].x, -10);
+          set(layer[${popupName}].y, 10);
+          set(layer[${popupName}].width, 300);
+          set(layer[${popupName}].height, 100);
+          set(layer[${popupName}].bgcolor, 0xFFFFFF);
+          set(layer[${popupName}].bgalpha, 1);
+          set(layer[${popupName}].bgborder, 1 0x777777 0.5);
+          set(layer[${popupName}].bgroundedge, 7);
+          set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
+          
+          addlayer(${popupContentName});
+          set(layer[${popupContentName}].parent, ${popupName});
+          set(layer[${popupContentName}].type, text);
+          set(layer[${popupContentName}].align, lefttop);
+          set(layer[${popupContentName}].htmlautosize, true);
+          set(layer[${popupContentName}].width, 100%);
+          set(layer[${popupContentName}].bgalpha, 0.0);
+          set(layer[${popupContentName}].css, color:black; font-size:14px;);
+          set(layer[${popupContentName}].editable, true);
+          set(layer[${popupContentName}].editenterkey, newline);
+        `);
+  
+        const popupContent = krpanoInstance.get(`layer[${popupContentName}]`);
+        popupContent.html = hotspotData[hotspotName]?.text || hotspot.text;
+  
+        activePopups[hotspotName] = {
+          popup: krpanoInstance.get(`layer[${popupName}]`),
+          content: popupContent
+        };
+      }
+  
+      // Hide all other popups and show only the current one
+      Object.keys(activePopups).forEach(name => {
+        activePopups[name].popup.visible = name === hotspotName;
+      });
+  
     } catch (error) {
       console.error("Error selecting hotspot:", error);
     }
@@ -62,21 +110,23 @@ const loadKrpano = () => {
       console.warn('krpanoInstance not ready.');
       return;
     }
-
+  
     try {
       const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
       if (!hotspot) {
         console.warn(`Hotspot "${hotspotName}" not found.`);
         return;
       }
+      
       hotspot.bordercolor = null;
       hotspot.borderwidth = null;
       hotspot.editable = false;
       selectedHotspot = null;
-
+  
       // Hide the popup
-      const popup = krpanoInstance.get("layer[popup]");
-      popup.visible = false;
+      if (activePopups[hotspotName]) {
+        activePopups[hotspotName].popup.visible = false;
+      }
     } catch (error) {
       console.error("Error unselecting hotspot:", error);
     }
@@ -156,17 +206,31 @@ const loadKrpano = () => {
           console.warn('No hotspot selected to remove.');
           return;
         }
-
+      
         try {
           const hotspotName = selectedHotspot.name;
+          
+          // Remove the hotspot
           callKrpano(`removehotspot(${hotspotName})`);
-          delete hotspotData[hotspotName]; // Remove from local storage
-          localStorage.setItem('hotspotData', JSON.stringify(hotspotData)); // Save to local storage
-          selectedHotspot = null; // Clear the selected hotspot after removal
-
-          // Hide the popup
-          const popup = krpanoInstance.get("layer[popup]");
-          popup.visible = false;
+          
+          // Remove popup layers if they exist
+          if (activePopups[hotspotName]) {
+            const popupName = `popup_${hotspotName}`;
+            const popupContentName = `popupcontent_${hotspotName}`;
+            
+            callKrpano(`removelayer(${popupContentName})`);
+            callKrpano(`removelayer(${popupName})`);
+            
+            // Remove from activePopups
+            delete activePopups[hotspotName];
+          }
+          
+          // Remove from hotspotData and update localStorage
+          delete hotspotData[hotspotName];
+          localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
+          
+          // Clear selected hotspot
+          selectedHotspot = null;
         } catch (error) {
           console.error("Error removing hotspot:", error);
         }
@@ -237,29 +301,32 @@ const loadKrpano = () => {
 
   function saveHotspotData(hotspotName) {
     const hotspot = krpanoInstance.get(`hotspot[${hotspotName}]`);
-    const popupcontent = krpanoInstance.get("layer[popupcontent]");
-    if (hotspot) {
+    const popupContent = activePopups[hotspotName]?.content;
+    
+    if (hotspot && popupContent) {
       hotspotData[hotspotName] = {
-        text: popupcontent.html,
+        text: popupContent.html,
         ath: hotspot.ath,
         atv: hotspot.atv
       };
+      localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
+      
+      // Save to server
+      fetch('/api/data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ hotspots: hotspotData })
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Hotspot data saved:', data);
+      })
+      .catch(error => {
+        console.error('Error saving hotspot data:', error);
+      });
     }
-    localStorage.setItem('hotspotData', JSON.stringify(hotspotData)); // Save to local storage
-    fetch('/api/data', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ hotspots: hotspotData })
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Hotspot data saved:', data);
-    })
-    .catch(error => {
-      console.error('Error saving hotspot data:', error);
-    });
   }
 
   function onKRPanoError(err) {
