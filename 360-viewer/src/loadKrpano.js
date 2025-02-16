@@ -14,8 +14,13 @@ let selectedHotspot = null;
 let activePopups = {};
 let userPosition = { ath: 180, atv: 90 };
 let userPositionLoading = false;
+let panoramaHistory = [];
 
-const loadKrpano = () => {
+const loadKrpano = (panoramaUrl) => {
+  if (panoramaHistory.length === 0 || panoramaHistory[panoramaHistory.length - 1] !== panoramaUrl) {
+    panoramaHistory.push(panoramaUrl);
+  }
+
   let xmlStr;
 
   // Clear any existing viewer first
@@ -656,6 +661,13 @@ const loadKrpano = () => {
   }
 
 
+<<<<<<< HEAD
+=======
+  fetch(panoramaUrl)
+    .then((res) => res.text())
+    .then((xml) => {
+      xmlStr = xml;
+>>>>>>> 20f4a7d08edd9764d6bdbd0034ad69a6952998d6
 
 };
 
@@ -692,4 +704,14 @@ window.hideHotspotPopup = function (hotspotName) {
   }
 };
 
-export default loadKrpano;
+const goBackToPreviousPanorama = () => {
+  if (panoramaHistory.length > 1) {
+    panoramaHistory.pop();
+    const previousPanorama = panoramaHistory.pop();
+    loadKrpano(previousPanorama);
+  } else {
+    console.warn('No previous panorama to go back to.');
+  }
+};
+
+export { loadKrpano, goBackToPreviousPanorama };
