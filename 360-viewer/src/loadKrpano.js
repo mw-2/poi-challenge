@@ -1,3 +1,7 @@
+import React from 'react'; // Ensure React is imported
+import ReactDOM from 'react-dom/client'; // Import ReactDOM from 'react-dom/client'
+import MapView from './MapView'; // Import the new MapView component
+
 const KRPANO_VIEWER_TARGET_ID = "krpano-target";
 const KRPANO_VIEWER_ID = "krpano-viewer";
 
@@ -5,6 +9,9 @@ let krpanoInstance = null; // Declare krpanoInstance outside the function
 let hotspotData = {}; // Declare hotspotData outside the function
 let selectedHotspot = null; // Declare selectedHotspot outside the function
 let activePopups = {}; // Declare activePopups outside the function
+let userPosition = { ath: 180, atv: 90 }; // Hardcoded user position (center of the sphere)
+let userPositionLoading = false; // Add a loading state
+
 
 const loadKrpano = () => {
   let xmlStr;
@@ -156,11 +163,13 @@ const loadKrpano = () => {
       console.error("Error attaching hotspot events:", error);
     }
   }
+ 
 
   function onKRPanoReady(krpano) {
     krpanoInstance = krpano;
     try {
       krpano.call(`loadxml(${xmlStr})`);
+      updateMap(); // Update the map with hotspots
 
       // Create the popup layer
       krpano.call(`
@@ -276,13 +285,14 @@ const loadKrpano = () => {
           js(saveHotspotData( %1 ));
         </action>
       `);
+      
     } catch (err) {
       console.error("Error loading krpano xml", err);
     }
   }
 
   function onViewerDoubleClick(event) {
-    if (!krpanoInstance) return; // Ensure krpanoInstance is valid
+    if (!krpanoInstance) return;
 
     const x = event.clientX;
     const y = event.clientY;
@@ -294,7 +304,7 @@ const loadKrpano = () => {
     callKrpano(`set(hotspot[${hotspotName}].text, "New Hotspot")`);
     callKrpano(`set(hotspot[${hotspotName}].ath, ${krpanoInstance.screentosphere(x, y).x})`);
     callKrpano(`set(hotspot[${hotspotName}].atv, ${krpanoInstance.screentosphere(x, y).y})`);
-    callKrpano(`set(hotspot[${hotspotName}].editable, true)`); // Make it editable
+    callKrpano(`set(hotspot[${hotspotName}].editable, true)`);
 
     // Assign JS callbacks for selecting/unselecting
     callKrpano(`set(hotspot[${hotspotName}].onclick, "js(selectHotspot('${hotspotName}'))")`);
@@ -302,11 +312,28 @@ const loadKrpano = () => {
 
     // Save the new hotspot data
     hotspotData[hotspotName] = {
-      text: "New Hotspot",
-      ath: krpanoInstance.screentosphere(x, y).x,
-      atv: krpanoInstance.screentosphere(x, y).y
+        text: "New Hotspot",
+        ath: krpanoInstance.screentosphere(x, y).x,
+        atv: krpanoInstance.screentosphere(x, y).y
     };
-    saveHotspotData();
+    saveHotspotData(hotspotName);
+    
+    // Add this line to update the map when a new hotspot is created
+    updateMap();
+  }
+
+  function updateMap() {
+    const mapContainer = document.getElementById('map');
+    if (mapContainer) {
+      const mapWidth = mapContainer.clientWidth;
+      const mapHeight = mapContainer.clientHeight;
+
+      // Convert hotspot positions
+      const hotspots = Object.values(hotspotData);
+
+      const root = ReactDOM.createRoot(mapContainer); // Create a root for the map container
+      root.render(<MapView hotspots={hotspots} userPosition={userPosition} isLoading={userPositionLoading} />); // Render the MapView component
+    }
   }
 
   function saveHotspotData(hotspotName) {
@@ -315,26 +342,28 @@ const loadKrpano = () => {
     
     if (hotspot && popupContent) {
       hotspotData[hotspotName] = {
-        text: popupContent.html,
-        ath: hotspot.ath,
-        atv: hotspot.atv
+          text: popupContent.html,
+          ath: hotspot.ath,
+          atv: hotspot.atv
       };
       localStorage.setItem('hotspotData', JSON.stringify(hotspotData));
       
       // Save to server
       fetch('/api/data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ hotspots: hotspotData })
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ hotspots: hotspotData })
       })
       .then(response => response.json())
       .then(data => {
-        console.log('Hotspot data saved:', data);
+          console.log('Hotspot data saved:', data);
+          // Add this line to update the map when hotspot data is saved
+          updateMap();
       })
       .catch(error => {
-        console.error('Error saving hotspot data:', error);
+          console.error('Error saving hotspot data:', error);
       });
     }
   }
@@ -358,6 +387,7 @@ const loadKrpano = () => {
 
   // Remove the krpano viewer before embedding a new instance
   removeKrpanoViewer();
+  updateMap(); // Call updateMap here to render the map immediately with the hardcoded position
 
   fetch("https://api.viewer.immersiondata.com/api/v1/panoramas/311975/krpano.xml")
     .then((res) => res.text())
