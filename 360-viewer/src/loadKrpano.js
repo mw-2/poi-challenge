@@ -429,8 +429,18 @@ const loadKrpano = (panoramaUrl) => {
             if (activePopups[hotspotName]) {
               const popupName = `popup_${hotspotName}`;
               const popupContentName = `popupcontent_${hotspotName}`;
+              const popupSelectName = `popupselect_${hotspotName}`;
+
+              // Remove the popup layers
               callKrpano(`removelayer(${popupContentName})`);
               callKrpano(`removelayer(${popupName})`);
+
+              // Remove the property selector element from DOM
+              const popupSelect = document.getElementById(popupSelectName);
+              if (popupSelect) {
+                popupSelect.remove();
+              }
+
               delete activePopups[hotspotName];
             }
 
@@ -612,7 +622,6 @@ const loadKrpano = (panoramaUrl) => {
         set(layer[${popupName}].bgalpha, 1);
         set(layer[${popupName}].bgborder, 1 0x777777 0.5);
         set(layer[${popupName}].bgroundedge, 7);
-        set(layer[${popupName}].bgshadow, 0 4 20 0x000000 0.25);
         set(layer[${popupName}].visible, true);
   
         addlayer(${popupTitleName});
